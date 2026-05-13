@@ -8,7 +8,9 @@ See `pm/how-to/` for conventions.
 
 ## Run
 
-`php -S 127.0.0.1:8080 -t app`
+`./scripts/run.sh` — startet `php -S localhost:8083 -t app` und öffnet den Default-Browser.
+
+Manuell ohne Browser: `php -S 127.0.0.1:8080 -t app`
 
 ## Entschleunigung — the core principle
 
