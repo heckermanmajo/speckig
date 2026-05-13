@@ -1,0 +1,163 @@
+<?php
+
+namespace _share;
+
+use _share\exceptions\IdNotFoundError;
+use _share\exceptions\NeedsLoginError;
+use _share\exceptions\NotAllowedError;
+use user\data\User;
+
+class app
+{
+
+    private static $logs = [];
+
+    static function escape(string $text): string
+    {
+        # html-escape for use inside element content and attribute values.
+        # ENT_QUOTES handles both single and double quotes.
+        # ENT_SUBSTITUTE replaces invalid UTF-8 instead of returning "".
+        return htmlspecialchars(
+            $text,
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            "UTF-8"
+        );
+    }
+
+    static function lang(array $languages): string
+    {
+        return $languages["de"]; # todo: implement...
+    }
+
+    static function redirect(?string $path = null): never 
+    {
+        if ( !$path ) $path = $_SERVER["REQUEST_URI"];
+        ob_get_clean();
+        header( "Location: {$path}" );
+        exit();
+    }
+
+    static function enforce_login(): void 
+    {
+        if ( !app::somebody_is_logged_in() )
+        {
+            app::redirect( "/" );
+        }
+    }
+
+    static function enforce_plattform_admin(): void
+    {
+        # Hard gate for admin-only endpoints. Defensive layering:
+        # 1) somebody is logged in at all
+        # 2) the logged-in user still exists in the DB
+        # 3) that DB row has is_admin == 1
+        # Anything else throws — callers do not get to silently
+        # downgrade to a non-admin context.
+
+        if ( ! app::somebody_is_logged_in() )
+        {
+            throw new NeedsLoginError("admin endpoint requires login");
+        }
+
+        $current_user_or_null = db::get_by_id(
+            User::class,
+            app::get_current_user_id()
+        );
+
+        if ( ! $current_user_or_null )
+        {
+            app::error_log("enforce_plattform_admin: session user_id has no DB row");
+            throw new NotAllowedError("session user not found");
+        }
+
+        $user_is_plattform_admin = $current_user_or_null->is_admin === 1;
+
+        if ( ! $user_is_plattform_admin )
+        {
+            app::error_log(
+                "enforce_plattform_admin: non-admin user_id={$current_user_or_null->id} hit admin endpoint"
+            );
+            throw new NotAllowedError("admin only");
+        }
+    }
+
+    static function get_current_user_id(): int
+    {
+        if ( !app::somebody_is_logged_in() )
+        {
+            throw new NeedsLoginError();
+        }
+
+        return $_SESSION["user_id"];
+    }
+
+    static function get_current_user(): User
+    {
+
+        $id = app::get_current_user_id();
+
+        $user = db::get_by_id( User::class, $id );
+
+        if ( !$user )
+        {
+            throw new IdNotFoundError( "Logged in user id not found in database" );
+        }
+
+        return $user;
+
+    }
+
+    static function log(mixed $value, string $fn): void
+    {
+        # ...
+    }
+
+    static function error_log(mixed $value): void
+    {
+        # ...
+    }
+
+    static function is_mobile(): bool
+    {
+        # Cheap UA sniffing. Good enough for index.php-level
+        # redirects between desktop and mobile renderings. Not for
+        # security decisions.
+
+        $raw_user_agent = $_SERVER["HTTP_USER_AGENT"] ?? "";
+
+        if ($raw_user_agent === "") return false;
+
+        $mobile_marker_pattern = '/(Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini)/i';
+
+        return preg_match($mobile_marker_pattern, $raw_user_agent) === 1;
+    }
+
+    static function is_debug(): bool
+    {
+        return true;
+    }
+
+    static function somebody_is_logged_in(): bool 
+    {
+        return (
+            isset($_SESSION["user_id"]) 
+            && is_int($_SESSION["user_id"]) 
+            && $_SESSION["user_id"] > 0
+        ); 
+    }
+
+    static function perform_login(User $user): void 
+    {
+        $_SESSION["user_id"] = $user->id;
+    }
+
+    static function get_logs(): array {
+        return [];
+    }
+
+    static function function_log(string $message, string $function, string $file, array $data): void 
+    {
+
+    }
+
+}
