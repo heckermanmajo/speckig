@@ -48,17 +48,9 @@ spl_autoload_register(
 
 use _share\db;
 use user\data\User;
-use tenant\data\Tenant;
-use tenant\data\TenantUserAssociation;
-use network\data\Network;
-use network\data\NetworkTenantMembership;
 
 $data_classes = [
     User::class,
-    Tenant::class,
-    TenantUserAssociation::class,
-    Network::class,
-    NetworkTenantMembership::class,
 ];
 
 
