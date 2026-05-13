@@ -8,54 +8,65 @@ include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
 require_once $_SERVER["DOCUMENT_ROOT"] . "/_share/vendor/Parsedown.php";
 
 # Speckig-Layout for ticket 0006:
-# - Header oben, pm/-Tree links, Datei-Inhalt rechts.
+# - Header oben, Repo-Tree links, Datei-Inhalt rechts.
 # - Navigation per ?path=... mit Full-Page-Reload, kein JS.
 # - .md -> via vendored Parsedown gerendert. Andere Endungen als <pre>-Plaintext.
-# - Pfad-Traversal (.., absolute Pfade, ausserhalb pm/) wird hart abgewiesen.
+# - Pfad-Traversal (.., absolute Pfade, ausserhalb des Roots) wird hart abgewiesen.
 #
 # Login-/document::head()-Nav bleibt absichtlich aussen vor (vgl. 0005).
+#
+# Repo-Root via SPECKIG_ROOT (Ticket 002/0002):
+# Das Speckig-eigene app/ liegt unter $_SERVER["DOCUMENT_ROOT"] und ist
+# unabhaengig vom gebrowsten Root. $speckig_root_abs zeigt auf den Repo-Root,
+# dessen Inhalt im Tree erscheint. Default = parent von app/ (eigenes Repo).
 
-# --- pm-Root resolven --------------------------------------------------------
-# $_SERVER["DOCUMENT_ROOT"] zeigt auf app/. pm/ liegt im Repo-Root daneben.
+# --- Speckig-Root resolven --------------------------------------------------
 
-$doc_root_abs   = $_SERVER["DOCUMENT_ROOT"];
-$repo_root_abs  = realpath($doc_root_abs . "/..");
-$pm_root_abs    = realpath($repo_root_abs . "/pm");
+$env_speckig_root  = getenv("SPECKIG_ROOT");
+$env_root_is_given = is_string($env_speckig_root) && $env_speckig_root !== "";
+
+if ($env_root_is_given)
+{
+    $speckig_root_abs = realpath($env_speckig_root);
+}
+else
+{
+    $speckig_root_abs = realpath(__DIR__ . "/..");
+}
 
 # --- ?path validieren -------------------------------------------------------
 # Drei Schichten Traversal-Schutz:
-#  1) String-Check: muss mit "pm/" anfangen, kein "..", kein fuehrender "/".
-#  2) Realpath-Check: aufgeloester Pfad muss innerhalb von $pm_root_abs liegen.
+#  1) String-Check: kein "..", kein fuehrender "/".
+#  2) Realpath-Check: aufgeloester Pfad muss innerhalb von $speckig_root_abs liegen.
 #  3) Existenz: muss eine echte Datei sein.
 
-$raw_path             = isset($_GET["path"]) ? (string) $_GET["path"] : "";
-$path_was_requested   = $raw_path !== "";
+$raw_path           = isset($_GET["path"]) ? (string) $_GET["path"] : "";
+$path_was_requested = $raw_path !== "";
 
 $path_string_is_safe =
     $path_was_requested
-    && str_starts_with($raw_path, "pm/")
     && ! str_contains($raw_path, "..")
     && $raw_path[0] !== "/";
 
 $resolved_path_abs = false;
 
-if ($path_string_is_safe)
+if ($path_string_is_safe && $speckig_root_abs !== false)
 {
-    $resolved_path_abs = realpath($repo_root_abs . "/" . $raw_path);
+    $resolved_path_abs = realpath($speckig_root_abs . "/" . $raw_path);
 }
 
-$path_is_inside_pm =
+$path_is_inside_root =
     $resolved_path_abs !== false
-    && $pm_root_abs !== false
-    && str_starts_with($resolved_path_abs, $pm_root_abs . DIRECTORY_SEPARATOR);
+    && $speckig_root_abs !== false
+    && str_starts_with($resolved_path_abs, $speckig_root_abs . DIRECTORY_SEPARATOR);
 
 $path_points_to_file =
-    $path_is_inside_pm
+    $path_is_inside_root
     && is_file($resolved_path_abs);
 
 $path_is_valid =
     $path_string_is_safe
-    && $path_is_inside_pm
+    && $path_is_inside_root
     && $path_points_to_file;
 
 if ($path_was_requested && ! $path_is_valid)
@@ -163,9 +174,9 @@ function render_tree(string $dir_abs, string $rel_prefix): string
 
 $rendered_tree_html = "";
 
-if ($pm_root_abs !== false)
+if ($speckig_root_abs !== false)
 {
-    $rendered_tree_html = render_tree($pm_root_abs, "pm/");
+    $rendered_tree_html = render_tree($speckig_root_abs, "");
 }
 
 # --- Datei-Content rendern ---------------------------------------------------
@@ -199,6 +210,7 @@ if ($path_is_valid)
 # Zeigt nur den validierten Pfad, nie den $raw_path — sonst Reflected-XSS-Risiko.
 
 $header_path_label = $path_is_valid ? $raw_path : "";
+$header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) : "";
 
 ?>
 <!doctype html>
@@ -223,6 +235,9 @@ $header_path_label = $path_is_valid ? $raw_path : "";
 <body>
 <header>
     <strong>speckig</strong>
+    <?php if ($header_root_label !== "") { ?>
+        · <code><?= app::escape($header_root_label) ?></code>
+    <?php } ?>
     <?php if ($header_path_label !== "") { ?>
         — <?= app::escape($header_path_label) ?>
     <?php } ?>
