@@ -1,10 +1,10 @@
 # 001 — PHP-Infra-Bootstrap
 
 Goal: `php -S` läuft auf `app/`, Autoloader stimmt, `app/index.php` zeigt den `pm/`-Tree, Klick auf `.md` rendert es.
-Status: planned
+Status: active
 
 ## Tickets
-- [ ] open/0001-autoloader-fix.md
+- [x] archive/0001-autoloader-fix.md
 - [ ] open/0002-code-style.md
 - [ ] open/0003-data-initializer-fix.md
 - [ ] open/0004-speckig-index.md
