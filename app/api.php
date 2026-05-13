@@ -72,7 +72,7 @@ if (!$action_name_has_valid_shape)
 
 # --- strip transport-level fields from $_REQUEST ---
 # action and csrf_token are part of the AJAX transport, not part of
-# the Action's input contract. The Action::bindInputToParameters
+# the Action's input contract. The Action::bind_input_to_parameters
 # logic rejects unknown fields, so we have to remove them here
 # before dispatch. Same for $_POST/$_GET to be safe — the Action
 # layer reads from $_REQUEST but other code paths might inspect

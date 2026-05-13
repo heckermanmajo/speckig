@@ -21,9 +21,9 @@ abstract class Action
 
     final public static function from_array(array $input): static
     {
-        $method = self::getExecuteMethod();
+        $method = self::get_execute_method();
 
-        $args = self::bindInputToParameters($method, $input);
+        $args = self::bind_input_to_parameters($method, $input);
 
         try {
             $result = $method->invokeArgs(null, $args);
@@ -46,7 +46,7 @@ abstract class Action
         return $result;
     }
 
-    final public static function tryFromArray(array $input): static|Throwable
+    final public static function try_from_array(array $input): static|Throwable
     {
         try {
             return static::from_array($input);
@@ -57,7 +57,7 @@ abstract class Action
 
     final public static function execute_as_request_and_dump_json_and_exit(): never
     {
-        $result = static::tryFromArray($_REQUEST);
+        $result = static::try_from_array($_REQUEST);
         if ($result instanceof Throwable)
         {
             exit(
@@ -90,7 +90,7 @@ abstract class Action
         }
     }
 
-    private static function getExecuteMethod(): \ReflectionMethod
+    private static function get_execute_method(): \ReflectionMethod
     {
         if (!method_exists(static::class, 'execute')) {
             throw new \LogicException(
@@ -137,7 +137,7 @@ abstract class Action
         return $method;
     }
 
-    private static function bindInputToParameters(
+    private static function bind_input_to_parameters(
         \ReflectionMethod $method,
         array $input,
     ): array {
