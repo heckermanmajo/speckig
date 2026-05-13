@@ -10,6 +10,8 @@ app.sqlite-journal
 .DS_Store
 
 # php-typical
-vendor/
+# Note: only top-level vendor/ — wir vendoren bewusst unter app/_share/vendor/
+# (siehe pm/decisions/0002-php-infra.md), das soll eingecheckt sein.
+/vendor/
 composer-vendor/
 *.log

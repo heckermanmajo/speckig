@@ -1,7 +1,7 @@
 # 001 — PHP-Infra-Bootstrap
 
 Goal: `php -S` läuft auf `app/`, Autoloader stimmt, `app/index.php` zeigt ein zwei-spaltiges Layout mit `pm/`-Tree links und gerendertem Datei-Inhalt rechts.
-Status: active
+Status: done
 
 ## Tickets
 - [x] archive/0001-autoloader-fix.md
@@ -9,7 +9,7 @@ Status: active
 - [x] archive/0003-rename-camel-methods.md
 - [x] archive/0004-data-initializer-fix.md
 - [x] archive/0005-speckig-index.md
-- [ ] open/0006-speckig-layout.md
+- [x] archive/0006-speckig-layout.md
 
 ## Out of scope
 - `.spec`-Parser, Drift-Detection, MCP-Server.
