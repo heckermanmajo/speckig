@@ -6,6 +6,10 @@ Edit specs like code, diff them like code, query them via tool.
 See `Value.spec` for the problem this solves.
 See `pm/how-to/` for conventions.
 
+## Run
+
+`php -S 127.0.0.1:8080 -t app`
+
 ## Entschleunigung — the core principle
 
 > Wer weit gehen will, geht einen Blick zur Zeit.

@@ -8,7 +8,7 @@ Status: active
 - [x] archive/0002-code-style.md
 - [x] archive/0003-rename-camel-methods.md
 - [x] archive/0004-data-initializer-fix.md
-- [ ] open/0005-speckig-index.md
+- [x] archive/0005-speckig-index.md
 - [ ] open/0006-tree-view.md
 - [ ] open/0007-md-render.md
 
