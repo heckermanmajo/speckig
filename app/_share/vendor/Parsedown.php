@@ -11,6 +11,10 @@
 # For the full license information, view the LICENSE file that was distributed
 # with this source code.
 #
+# Local patches (speckig, pm/bugs/archive/0001-parsedown-php85-deprecations.md):
+#   - 2026-05-13: blockSetextHeader() and blockTable() signatures changed
+#     from `array $Block = null` to `?array $Block = null` to silence
+#     PHP 8.4+ implicit-nullable deprecation warnings.
 #
 
 class Parsedown
@@ -712,7 +716,7 @@ class Parsedown
     #
     # Setext
 
-    protected function blockSetextHeader($Line, array $Block = null)
+    protected function blockSetextHeader($Line, ?array $Block = null)
     {
         if ( ! isset($Block) or isset($Block['type']) or isset($Block['interrupted']))
         {
@@ -850,7 +854,7 @@ class Parsedown
     #
     # Table
 
-    protected function blockTable($Line, array $Block = null)
+    protected function blockTable($Line, ?array $Block = null)
     {
         if ( ! isset($Block) or isset($Block['type']) or isset($Block['interrupted']))
         {
