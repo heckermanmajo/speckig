@@ -5,13 +5,16 @@ declare(strict_types=1);
 use _share\app;
 
 include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
-require_once $_SERVER["DOCUMENT_ROOT"] . "/_share/vendor/Parsedown.php";
 
-# Speckig-Layout for ticket 0006:
+# Speckig-Layout (seit Ticket 002/0006):
 # - Header oben, Repo-Tree links, Datei-Inhalt rechts.
-# - Navigation per ?path=... mit Full-Page-Reload, kein JS.
-# - .md -> via vendored Parsedown gerendert. Andere Endungen als <pre>-Plaintext.
-# - Pfad-Traversal (.., absolute Pfade, ausserhalb des Roots) wird hart abgewiesen.
+# - Navigation per Tree-Link laeuft via AJAX gegen /file.php (siehe 002/0005).
+# - index.php rendert rechts initial nur den Hinweis-Platzhalter; JS uebernimmt
+#   beim DOMContentLoaded auch den Fall, dass ?path in der URL steht
+#   (content_loader.js, replaceState + load_path).
+# - Markdown-/Plaintext-Render lebt jetzt einzig in app/file.php.
+# - Pfad-Traversal (.., absolute Pfade, ausserhalb des Roots) wird hart abgewiesen
+#   (fuer das Header-Label hier, fuer den Render-Vertrag in file.php).
 #
 # Login-/document::head()-Nav bleibt absichtlich aussen vor (vgl. 0005).
 #
@@ -39,6 +42,12 @@ else
 #  1) String-Check: kein "..", kein fuehrender "/".
 #  2) Realpath-Check: aufgeloester Pfad muss innerhalb von $speckig_root_abs liegen.
 #  3) Existenz: muss eine echte Datei sein.
+#
+# Wird hier nur noch fuer das Header-Pfad-Label gebraucht; der Render-Pfad lebt
+# in /file.php und wird via content_loader.js geholt. Die Validation bleibt drin,
+# damit der initiale Server-Render des Headers bei Bookmarks mit ?path nicht kurz
+# leer steht (waere haesslich); die Duplikation zur Validation in file.php ist
+# bewusst, ein Helper-Refactor ist ein eigenes Ticket (Hinweis in 0004 Done).
 
 $raw_path           = isset($_GET["path"]) ? (string) $_GET["path"] : "";
 $path_was_requested = $raw_path !== "";
@@ -180,33 +189,6 @@ if ($speckig_root_abs !== false)
     $rendered_tree_html = render_tree($speckig_root_abs, "");
 }
 
-# --- Datei-Content rendern ---------------------------------------------------
-# .md -> Parsedown. Sonst -> <pre>-Plaintext mit escape.
-
-$rendered_content_html = "<p>Datei links auswählen.</p>";
-
-if ($path_was_requested && ! $path_is_valid)
-{
-    $rendered_content_html = "<p>Ungültiger Pfad.</p>";
-}
-
-if ($path_is_valid)
-{
-    $raw_file_contents = (string) file_get_contents($resolved_path_abs);
-    $file_extension    = strtolower(pathinfo($resolved_path_abs, PATHINFO_EXTENSION));
-    $file_is_markdown  = $file_extension === "md";
-
-    if ($file_is_markdown)
-    {
-        $parsedown_instance     = new Parsedown();
-        $rendered_content_html  = $parsedown_instance->text($raw_file_contents);
-    }
-    else
-    {
-        $rendered_content_html = "<pre>" . app::escape($raw_file_contents) . "</pre>";
-    }
-}
-
 # --- Header-Pfadanzeige ------------------------------------------------------
 # Zeigt nur den validierten Pfad, nie den $raw_path — sonst Reflected-XSS-Risiko.
 
@@ -243,7 +225,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 </header>
 <main>
     <nav><?= $rendered_tree_html ?></nav>
-    <article id="content"><?= $rendered_content_html ?></article>
+    <article id="content"><p>Datei links auswählen.</p></article>
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
