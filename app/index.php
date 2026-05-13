@@ -208,7 +208,8 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
         main { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 3rem); }
         nav, article { padding: 1rem; overflow: auto; }
         nav { border-right: 1px solid #ccc; }
-        nav details > details, nav details > a { margin-left: 1.25rem; display: block; }
+        nav > a, nav details > a { display: block; }
+        nav details > details, nav details > a { margin-left: 1.25rem; }
         nav summary { cursor: pointer; }
         nav a { text-decoration: none; cursor: pointer; }
         nav a:hover { text-decoration: underline; }
