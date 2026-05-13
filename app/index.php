@@ -239,15 +239,14 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     <?php if ($header_root_label !== "") { ?>
         · <code><?= app::escape($header_root_label) ?></code>
     <?php } ?>
-    <?php if ($header_path_label !== "") { ?>
-        — <?= app::escape($header_path_label) ?>
-    <?php } ?>
+    — <span id="header-path-label"><?= app::escape($header_path_label) ?></span>
 </header>
 <main>
     <nav><?= $rendered_tree_html ?></nav>
-    <article><?= $rendered_content_html ?></article>
+    <article id="content"><?= $rendered_content_html ?></article>
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
+<script src="/_share/js/content_loader.js"></script>
 </body>
 </html>
