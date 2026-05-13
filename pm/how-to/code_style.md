@@ -68,15 +68,24 @@ app::error_log("api.php rejected malformed action name: " . $raw_action_name);
 
 ## Naming
 
-- Klassen: `PascalCase` — `User`, `Action`, `TenantUserAssociation`.
-- Funktionen / Methoden: `camelCase` — `bindInputToParameters`,
-  `tryFromArray`.
-- Variablen: `snake_case` — `$raw_action_name`, `$user_is_admin`,
-  `$logged_in_user_or_null`.
-- Sprechende Namen vor kurzen: `$logged_in_user_or_null` schlägt `$u`.
+- **Variablen**: `snake_case` — `$raw_action_name`, `$user_is_admin`,
+  `$logged_in_user_or_null`. Sprechende Namen vor kurzen:
+  `$logged_in_user_or_null` schlägt `$u`.
+- **Funktionen / Methoden**: immer `snake_case`, auch statische —
+  `app::error_log`, `db::get_by_id`, `app::somebody_is_logged_in`.
+- **Klassen, instanziierbar**: `PascalCase` — Datenklassen (`User`,
+  `DataClass`), Actions (`LoginAction`, `CreateUserAction`), Exceptions
+  (`UserError`, `BadCredentialsError`).
+- **Klassen, nur statisch (Funktions-Bündel)**: `lowercase` / `snake_case` —
+  `app`, `db`, `document`, `cards`. Sie tragen keine Identität, ihre
+  Methoden sind das Interface.
 
-`app::error_log` ist `snake_case` als Methode — Altbestand. Neue Methoden
-sind `camelCase`.
+Heuristik: schreibst du `new Foo()`? Dann `Foo` ist `PascalCase`.
+Schreibst du nur `foo::bar()`? Dann ist `foo` lowercase.
+
+Der einkopierte Code hat noch ein paar `camelCase`-Methoden
+(`bindInputToParameters`, `tryFromArray`, `from_array`); die werden in
+einem eigenen Ticket umbenannt.
 
 ## Konservatives PHP
 

@@ -10,6 +10,7 @@ Status: active
 - [ ] open/0004-speckig-index.md
 - [ ] open/0005-tree-view.md
 - [ ] open/0006-md-render.md
+- [ ] open/0007-rename-camel-methods.md
 
 ## Out of scope
 - `.spec`-Parser, Drift-Detection, MCP-Server.
