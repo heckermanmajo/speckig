@@ -69,6 +69,32 @@ if ($path_was_requested && ! $path_is_valid)
 # Sortierung: Ordner zuerst, dann Dateien, jeweils alphabetisch.
 # Versteckte Eintraege (Punkt-Prefix) werden uebersprungen.
 
+function count_visible_children(string $dir_abs): int
+{
+    $entries = @scandir($dir_abs);
+
+    if ($entries === false)
+    {
+        return 0;
+    }
+
+    $visible_count = 0;
+
+    foreach ($entries as $entry_name)
+    {
+        $entry_is_hidden = $entry_name === "" || $entry_name[0] === ".";
+
+        if ($entry_is_hidden)
+        {
+            continue;
+        }
+
+        $visible_count++;
+    }
+
+    return $visible_count;
+}
+
 function render_tree(string $dir_abs, string $rel_prefix): string
 {
     $entries = @scandir($dir_abs);
@@ -111,9 +137,13 @@ function render_tree(string $dir_abs, string $rel_prefix): string
     {
         $sub_dir_abs        = $dir_abs . "/" . $sub_dir_name;
         $sub_dir_rel_prefix = $rel_prefix . $sub_dir_name . "/";
+        $visible_child_count = count_visible_children($sub_dir_abs);
 
         $rendered_html .= "<details open>";
-        $rendered_html .= "<summary>" . \_share\app::escape($sub_dir_name) . "/</summary>";
+        $rendered_html .= "<summary>";
+        $rendered_html .= \_share\app::escape($sub_dir_name) . "/";
+        $rendered_html .= " <span style=\"color:#888\">(" . $visible_child_count . ")</span>";
+        $rendered_html .= "</summary>";
         $rendered_html .= render_tree($sub_dir_abs, $sub_dir_rel_prefix);
         $rendered_html .= "</details>";
     }
@@ -184,8 +214,8 @@ $header_path_label = $path_is_valid ? $raw_path : "";
         nav, article { padding: 1rem; overflow: auto; }
         nav { border-right: 1px solid #ccc; }
         nav details > details, nav details > a { margin-left: 1.25rem; display: block; }
-        nav summary { cursor: default; }
-        nav a { text-decoration: none; }
+        nav summary { cursor: pointer; }
+        nav a { text-decoration: none; cursor: pointer; }
         nav a:hover { text-decoration: underline; }
         article pre { white-space: pre-wrap; word-wrap: break-word; }
     </style>
