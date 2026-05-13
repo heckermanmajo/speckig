@@ -8,7 +8,7 @@ Status: active
 - [x] archive/0001-cursor-and-child-count.md
 - [x] archive/0002-repo-root-via-arg.md
 - [x] archive/0003-js-helpers-and-collapse-state.md
-- [ ] open/0004-json-file-endpoint.md
+- [x] archive/0004-json-file-endpoint.md
 - [ ] open/0005-content-via-ajax.md
 - [ ] open/0006-clean-server-render.md
 
