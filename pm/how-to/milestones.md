@@ -1,13 +1,17 @@
 # milestones
 
 A milestone groups tickets toward a named outcome. Lives in `pm/milestones/`.
-One **folder** per milestone: `pm/milestones/NNN-kebab-title/`.
+One **folder** per milestone: `pm/milestones/NNN-kebab-title/`. When the
+milestone is `done`, the whole folder moves under `pm/milestones/archive/`.
 
 ```
-pm/milestones/NNN-kebab-title/
-  milestone.md
-  open/        # NNNN-kebab-title.md (ticket numbers restart per milestone)
+pm/milestones/
+  NNN-kebab-title/         # active or planned milestones live here
+    milestone.md
+    open/                  # NNNN-kebab-title.md (ticket numbers restart per milestone)
+    archive/
   archive/
+    NNN-kebab-title/       # done milestones — same internal shape, moved as-is
 ```
 
 ## When to add a milestone
@@ -15,7 +19,7 @@ pm/milestones/NNN-kebab-title/
 - A goal needs a name so tickets can point to it.
 - You want to co-plan with an LLM and need a shared anchor.
 
-If you only have one ticket in mind, skip the milestone. There is no global ticket pool — every ticket belongs to exactly one milestone.
+If you only have one ticket in mind, skip the milestone — but most non-milestone work is a **bug**, which has its own home in `pm/bugs/` (see [[bugs]]). Bugs do not need a milestone.
 
 ## milestone.md shape
 ```
@@ -38,6 +42,7 @@ Status: planned | active | done | dropped
 - Ticket numbers restart at `0001` inside each milestone.
 - Tick the box when the ticket moves into `archive/`.
 - `Status: done` only when all boxes are ticked.
+- When `Status: done` is set, move the whole milestone folder via `git mv pm/milestones/NNN-… pm/milestones/archive/NNN-…` in the same commit that flips the status.
 
 ## Ticket shape
 ```
