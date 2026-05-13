@@ -9,6 +9,7 @@ plus `pm/decisions/`, `pm/decision-tasks/`, `pm/ideas/`, `pm/terms/`,
 - `process.md` — the dev loop, file conventions.
 - `milestones.md` — grouping tickets toward a named outcome.
 - `commit.md` — commit message shape & rules.
+- `code_style.md` — PHP style rules with examples from `app/_share/`.
 - `decisions.md` — how to log decisions in `pm/decisions/`.
 - `decision-tasks.md` — open questions the bot escalates to the human.
 - `audits.md` — repeatable checks defined in `pm/audits/`.

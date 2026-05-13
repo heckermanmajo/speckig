@@ -5,7 +5,7 @@ Status: active
 
 ## Tickets
 - [x] archive/0001-autoloader-fix.md
-- [ ] open/0002-code-style.md
+- [x] archive/0002-code-style.md
 - [ ] open/0003-data-initializer-fix.md
 - [ ] open/0004-speckig-index.md
 - [ ] open/0005-tree-view.md
