@@ -6,11 +6,11 @@ Status: active
 ## Tickets
 - [x] archive/0001-autoloader-fix.md
 - [x] archive/0002-code-style.md
-- [ ] open/0003-data-initializer-fix.md
-- [ ] open/0004-speckig-index.md
-- [ ] open/0005-tree-view.md
-- [ ] open/0006-md-render.md
-- [ ] open/0007-rename-camel-methods.md
+- [ ] open/0003-rename-camel-methods.md
+- [ ] open/0004-data-initializer-fix.md
+- [ ] open/0005-speckig-index.md
+- [ ] open/0006-tree-view.md
+- [ ] open/0007-md-render.md
 
 ## Out of scope
 - `.spec`-Parser, Drift-Detection, MCP-Server.

@@ -1,4 +1,4 @@
-# 0004 — Speckig-Index-Seite
+# 0005 — Speckig-Index-Seite
 
 See: pm/decisions/0002-php-infra.md
 Blocked by: 0001, 0002

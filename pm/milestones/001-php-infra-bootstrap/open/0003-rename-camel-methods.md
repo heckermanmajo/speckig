@@ -1,4 +1,4 @@
-# 0007 — Methoden in Action.php auf snake_case umbenennen
+# 0003 — Methoden in Action.php auf snake_case umbenennen
 
 See: pm/decisions/0002-php-infra.md, pm/how-to/code_style.md
 

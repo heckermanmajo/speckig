@@ -1,4 +1,4 @@
-# 0003 — data_initializer.php fix
+# 0004 — data_initializer.php fix
 
 See: pm/decisions/0002-php-infra.md
 Blocked by: 0001
