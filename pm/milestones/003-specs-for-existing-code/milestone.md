@@ -6,7 +6,7 @@ Status: active
 
 ## Tickets
 - [x] archive/0001-spec-format-doku.md
-- [ ] open/0002-share-core-specs.md
+- [x] archive/0002-share-core-specs.md
 - [ ] open/0003-share-exceptions-specs.md
 - [ ] open/0004-share-html-specs.md
 - [ ] open/0005-user-data-specs.md
