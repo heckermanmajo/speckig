@@ -6,8 +6,9 @@
 3. Edit/create the `.spec` next to the code.
 4. Implement.
 5. Test.
-6. Move ticket from the milestone's `open/` to its `archive/`.
-7. Commit: one ticket = one commit.
+6. Append a `## Done` section to the ticket file — terse bullet points of what was actually done (files touched, decisions made, deviations from the original plan). One screenful max.
+7. Move ticket from the milestone's `open/` to its `archive/`.
+8. Commit: **one ticket = exactly one commit**. Ticket move, `Done`-Section, code, spec — all in the same commit.
 
 ## File conventions
 - `Foo.spec` describes `Foo.*` in the same directory.

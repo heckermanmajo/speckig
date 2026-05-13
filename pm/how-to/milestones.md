@@ -39,5 +39,23 @@ Status: planned | active | done | dropped
 - Tick the box when the ticket moves into `archive/`.
 - `Status: done` only when all boxes are ticked.
 
+## Ticket shape
+```
+# NNNN — <Title>
+
+See: pm/decisions/NNNN-foo.md       # optional
+Blocked by: NNNN, NNNN               # optional
+
+## Done when
+- Acceptance criterion, one bullet.
+- Another acceptance criterion.
+
+## Done                              # appended when archived
+- What was actually done, terse bullets.
+- Files touched, decisions made, deviations from the plan.
+```
+
+The `## Done when` section is written before work starts. The `## Done` section is appended in the same commit that moves the ticket to `archive/`.
+
 ## See also
 - Entschleunigung: top-level [[README]] — break work down until each chunk is intuitive at a glance.

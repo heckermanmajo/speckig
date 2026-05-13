@@ -15,6 +15,7 @@ Optional body: why, not what. One paragraph max.
 - One ticket = one commit. If you need two commits, split the ticket.
 - Spec changes and code changes go in the **same** commit.
 - Move the ticket file from the milestone's `open/` to its `archive/` in the same commit.
+- Append a `## Done` section to the ticket file in the same commit — bullet points of what was actually done. The archived ticket reads as a record after the fact, not a plan.
 - If a decision was written for this commit, reference it: `See: pm/decisions/NNNN.md`.
 
 ## What does NOT need a ticket (and may commit without `[MMM/NNNN]`)
