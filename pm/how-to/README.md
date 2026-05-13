@@ -32,6 +32,7 @@ Project-specific content also lives in `*.spec` files next to code.
 - `bugs.md` — fixing broken things without a milestone.
 - `commit.md` — commit message shape & rules.
 - `code_style.md` — PHP style rules with examples from `app/_share/`.
+- `spec.md` — `.spec`-File-Format: YAML-Schema und Beispiel.
 - `decisions.md` — how to log decisions in `pm/decisions/` (append-only).
 - `decision-tasks.md` — open questions the bot escalates to the human.
 - `audits.md` — repeatable checks defined in `pm/audits/`.

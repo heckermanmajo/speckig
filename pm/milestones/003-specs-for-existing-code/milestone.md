@@ -2,10 +2,10 @@
 
 Goal: Jede PHP-Datei unter `app/` (ausser vendored) bekommt eine `.spec`-Datei daneben — YAML, flach pro Funktion, mit `does` und wichtigen `conditions`. Liefert den ersten echten Spec-Layer und macht den Editor in M004 sinnvoll.
 
-Status: planned
+Status: active
 
 ## Tickets
-- [ ] open/0001-spec-format-doku.md
+- [x] archive/0001-spec-format-doku.md
 - [ ] open/0002-share-core-specs.md
 - [ ] open/0003-share-exceptions-specs.md
 - [ ] open/0004-share-html-specs.md
