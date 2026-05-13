@@ -146,11 +146,12 @@ function render_tree(string $dir_abs, string $rel_prefix): string
 
     foreach ($directory_names as $sub_dir_name)
     {
-        $sub_dir_abs        = $dir_abs . "/" . $sub_dir_name;
-        $sub_dir_rel_prefix = $rel_prefix . $sub_dir_name . "/";
+        $sub_dir_abs         = $dir_abs . "/" . $sub_dir_name;
+        $sub_dir_rel_prefix  = $rel_prefix . $sub_dir_name . "/";
+        $sub_dir_rel_path    = $rel_prefix . $sub_dir_name;
         $visible_child_count = count_visible_children($sub_dir_abs);
 
-        $rendered_html .= "<details open>";
+        $rendered_html .= "<details open data-path=\"" . \_share\app::escape($sub_dir_rel_path) . "\">";
         $rendered_html .= "<summary>";
         $rendered_html .= \_share\app::escape($sub_dir_name) . "/";
         $rendered_html .= " <span style=\"color:#888\">(" . $visible_child_count . ")</span>";
@@ -246,5 +247,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     <nav><?= $rendered_tree_html ?></nav>
     <article><?= $rendered_content_html ?></article>
 </main>
+<script src="/_share/js/helpers.js"></script>
+<script src="/_share/js/tree_collapse.js"></script>
 </body>
 </html>
