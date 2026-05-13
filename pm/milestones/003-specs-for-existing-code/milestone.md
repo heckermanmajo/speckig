@@ -10,7 +10,7 @@ Status: active
 - [x] archive/0003-share-exceptions-specs.md
 - [x] archive/0004-share-html-specs.md
 - [x] archive/0005-user-data-specs.md
-- [ ] open/0006-user-actions-specs.md
+- [x] archive/0006-user-actions-specs.md
 - [ ] open/0007-user-pages-specs.md
 - [ ] open/0008-app-root-specs.md
 
