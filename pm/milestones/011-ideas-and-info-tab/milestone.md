@@ -12,8 +12,9 @@ Ticket-Render-Logik aus M006/0003 dargestellt. Read-only — kein Edit
 Status: planned
 
 ## Tickets
-- [ ] open/0001-pm-reader-info-sections.md  — pm_reader um list_ideas/
-      list_reports/list_decisions/list_audits/list_terms erweitern.
+- [x] archive/0001-info-sections-in-sidebar.md — pm_reader::list_info_sections,
+      Sidebar-Block in plan.php (Klassen-Wiederverwendung, keine
+      JS-/CSS-Aenderung).
 - [ ] open/0002-plan-sidebar-info-sections.md — Sidebar in plan.php um
       die neuen Sektionen erweitern, je eigene `<details>`-Bloecke.
 - [ ] open/0003-plan-loader-info-paths.md — plan_loader.js akzeptiert

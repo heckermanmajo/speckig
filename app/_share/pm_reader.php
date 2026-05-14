@@ -78,6 +78,49 @@ class pm_reader
     }
 
     // @spec
+    // Liefert ein assoziatives Array mit fuenf Schluesseln in fixer Reihenfolge:
+    //   `ideas`, `reports`, `decisions`, `audits`, `terms`.
+    // Pro Schluessel: Liste von `{slug, path, title}` — gleiche Form wie
+    // `list_bugs()["open"]`, sortiert nach Slug.
+    // Quelle pro Schluessel ist `pm/<key>/` direkt (keine Unterordner).
+    // Leere Sektion liefert leeres Array (kein Fehler).
+    // Nutzt `collect_tickets_in_dir()`, keine eigene Datei-Iteration.
+    // @end-spec
+    static function list_info_sections(): array
+    {
+        $repo_root = pm_reader::repo_root();
+
+        $ideas = pm_reader::collect_tickets_in_dir(
+            $repo_root . "/pm/ideas",
+            "pm/ideas"
+        );
+        $reports = pm_reader::collect_tickets_in_dir(
+            $repo_root . "/pm/reports",
+            "pm/reports"
+        );
+        $decisions = pm_reader::collect_tickets_in_dir(
+            $repo_root . "/pm/decisions",
+            "pm/decisions"
+        );
+        $audits = pm_reader::collect_tickets_in_dir(
+            $repo_root . "/pm/audits",
+            "pm/audits"
+        );
+        $terms = pm_reader::collect_tickets_in_dir(
+            $repo_root . "/pm/terms",
+            "pm/terms"
+        );
+
+        return [
+            "ideas"     => $ideas,
+            "reports"   => $reports,
+            "decisions" => $decisions,
+            "audits"    => $audits,
+            "terms"     => $terms,
+        ];
+    }
+
+    // @spec
     // Liest eine Datei unter `pm/` und gibt deren Inhalt zurueck.
     // Pfad-Traversal-Schutz:
     //   - kein `..` im Pfad,
