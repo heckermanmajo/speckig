@@ -133,3 +133,19 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
 {
     color: #c00;
 }
+
+/* New-ticket form (M012/0006) — pro Milestone-Block. Weniger prominent
+ * als der globale "+ Milestone"-Button, da haeufig mehrere im DOM. */
+.btn-new-ticket
+{
+    margin-top: 0.5rem;
+    font-size: 0.85em;
+}
+
+.new-ticket-form
+{
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}

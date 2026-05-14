@@ -5,12 +5,18 @@ declare(strict_types=1);
 // @spec
 // JSON-Endpoint fuer den Plan-View AJAX-Loader (M006/0003) plus
 // Save-Endpoint fuer den CodeMirror-Editor (M012/0002) plus
-// new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005).
+// new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005) plus
+// new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
 // POST ?action=new_milestone         -> Neuen Milestone-Folder anlegen.
 //                                       Body JSON: {slug, title}.
+//                                       Antwort: {ok:true, slug, path}.
+// POST ?action=new_ticket            -> Neues Ticket in einem aktiven
+//                                       Milestone anlegen + Bullet in
+//                                       milestone.md vor "## Out of scope".
+//                                       Body JSON: {milestone_slug, slug, title}.
 //                                       Antwort: {ok:true, slug, path}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
@@ -64,6 +70,407 @@ $method_is_post = $_SERVER["REQUEST_METHOD"] === "POST";
 $action         = isset($_GET["action"]) ? (string) $_GET["action"] : "";
 $action_is_save = $action === "save";
 $action_is_new_milestone = $action === "new_milestone";
+$action_is_new_ticket    = $action === "new_ticket";
+
+if ($method_is_post && $action_is_new_ticket)
+{
+    // @spec
+    // POST ?action=new_ticket legt ein neues Ticket im angegebenen aktiven
+    // Milestone an und fuegt eine Bullet-Zeile in dessen milestone.md vor
+    // "## Out of scope" ein.
+    // Vertrag:
+    //   - Body JSON: {"milestone_slug": "NNN-...", "slug": "...", "title": "..."}.
+    //   - milestone_slug: Form NNN-... (1-100 Zeichen, nur [a-z0-9-]); muss
+    //     als Ordner unter pm/milestones/<milestone_slug>/ existieren. Archive
+    //     (pm/milestones/archive/...) wird bewusst NICHT akzeptiert — Archive
+    //     ist read-only. Sonst 400.
+    //   - slug: 1-60 Zeichen, ausschliesslich [a-z0-9-], kein fuehrender oder
+    //     abschliessender Bindestrich. Sonst 400.
+    //   - title: getrimmt 1-120 Zeichen. Sonst 400.
+    //   - Naechste freie NNNN = max(NNNN in open/ + archive/ des Milestone) + 1,
+    //     vierstellig. Bei Kollision 409.
+    //   - Legt pm/milestones/<milestone_slug>/open/NNNN-<slug>.md aus Template
+    //     an. Trip-tmp+rename fuer milestone.md (bestehende Datei).
+    //   - Antwort 200 + {ok:true, slug:"NNNN-<slug>", path:"pm/milestones/<ms>/open/NNNN-<slug>.md"}.
+    //   - Jede Abweisung wird via app::error_log() protokolliert.
+    // @end-spec
+
+    $nt_body_raw = file_get_contents("php://input");
+
+    $nt_body_read_failed = $nt_body_raw === false;
+
+    if ($nt_body_read_failed)
+    {
+        app::error_log("pm.php new_ticket body read failed.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nt_payload = json_decode($nt_body_raw, true);
+
+    $nt_payload_is_object =
+        is_array($nt_payload)
+        && json_last_error() === JSON_ERROR_NONE;
+
+    if (! $nt_payload_is_object)
+    {
+        app::error_log("pm.php new_ticket rejected: body ist kein JSON.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nt_milestone_slug_raw = isset($nt_payload["milestone_slug"]) ? $nt_payload["milestone_slug"] : null;
+    $nt_slug_raw           = isset($nt_payload["slug"])           ? $nt_payload["slug"]           : null;
+    $nt_title_raw          = isset($nt_payload["title"])          ? $nt_payload["title"]          : null;
+
+    # milestone_slug validieren: String, 1-100 Zeichen, [a-z0-9-], Form NNN-...
+    # (drei Ziffern + Bindestrich + Rest).
+    $nt_ms_slug_is_string = is_string($nt_milestone_slug_raw);
+    $nt_ms_slug           = $nt_ms_slug_is_string ? $nt_milestone_slug_raw : "";
+
+    $nt_ms_slug_length_ok =
+        $nt_ms_slug_is_string
+        && strlen($nt_ms_slug) >= 1
+        && strlen($nt_ms_slug) <= 100;
+
+    $nt_ms_slug_charset_ok =
+        $nt_ms_slug_length_ok
+        && preg_match('/^[a-z0-9-]+$/', $nt_ms_slug) === 1;
+
+    $nt_ms_slug_is_valid_shape =
+        $nt_ms_slug_charset_ok
+        && preg_match('/^[0-9]{3}-/', $nt_ms_slug) === 1;
+
+    if (! $nt_ms_slug_is_valid_shape)
+    {
+        app::error_log("pm.php new_ticket rejected milestone_slug: " . (string) $nt_ms_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger milestone_slug.",
+        ]));
+    }
+
+    # Milestone-Ordner muss aktiv (nicht archive) existieren.
+    $nt_milestone_abs = $repo_root_abs . "/pm/milestones/" . $nt_ms_slug;
+
+    $nt_milestone_exists = is_dir($nt_milestone_abs);
+
+    if (! $nt_milestone_exists)
+    {
+        app::error_log("pm.php new_ticket milestone does not exist: " . $nt_ms_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Milestone existiert nicht.",
+        ]));
+    }
+
+    # slug validieren: String, 1-60 Zeichen, [a-z0-9-], kein fuehrender oder
+    # abschliessender Bindestrich.
+    $nt_slug_is_string = is_string($nt_slug_raw);
+    $nt_slug           = $nt_slug_is_string ? $nt_slug_raw : "";
+
+    $nt_slug_length_ok =
+        $nt_slug_is_string
+        && strlen($nt_slug) >= 1
+        && strlen($nt_slug) <= 60;
+
+    $nt_slug_charset_ok =
+        $nt_slug_length_ok
+        && preg_match('/^[a-z0-9-]+$/', $nt_slug) === 1;
+
+    $nt_slug_no_edge_dash =
+        $nt_slug_charset_ok
+        && $nt_slug[0] !== "-"
+        && $nt_slug[strlen($nt_slug) - 1] !== "-";
+
+    $nt_slug_is_valid = $nt_slug_no_edge_dash;
+
+    if (! $nt_slug_is_valid)
+    {
+        app::error_log("pm.php new_ticket rejected slug: " . (string) $nt_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger slug.",
+        ]));
+    }
+
+    # Titel validieren: String, getrimmt 1-120 Zeichen.
+    $nt_title_is_string = is_string($nt_title_raw);
+    $nt_title_trimmed   = $nt_title_is_string ? trim($nt_title_raw) : "";
+
+    $nt_title_is_valid =
+        $nt_title_is_string
+        && strlen($nt_title_trimmed) >= 1
+        && strlen($nt_title_trimmed) <= 120;
+
+    if (! $nt_title_is_valid)
+    {
+        app::error_log("pm.php new_ticket rejected title for milestone: " . $nt_ms_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Titel.",
+        ]));
+    }
+
+    # Naechste freie NNNN bestimmen: scan open/ + archive/ des Milestones.
+    $nt_open_dir    = $nt_milestone_abs . "/open";
+    $nt_archive_dir = $nt_milestone_abs . "/archive";
+
+    $nt_open_entries    = @scandir($nt_open_dir);
+    $nt_archive_entries = @scandir($nt_archive_dir);
+
+    if ($nt_open_entries === false)
+    {
+        $nt_open_entries = [];
+    }
+
+    if ($nt_archive_entries === false)
+    {
+        $nt_archive_entries = [];
+    }
+
+    $nt_all_entries = array_merge($nt_open_entries, $nt_archive_entries);
+
+    $nt_existing_numbers = [];
+
+    foreach ($nt_all_entries as $nt_entry)
+    {
+        $nt_entry_is_dotted = $nt_entry === "." || $nt_entry === "..";
+
+        if ($nt_entry_is_dotted)
+        {
+            continue;
+        }
+
+        $nt_entry_is_md = str_ends_with($nt_entry, ".md");
+
+        if (! $nt_entry_is_md)
+        {
+            continue;
+        }
+
+        $nt_entry_long_enough = strlen($nt_entry) >= 4;
+
+        if (! $nt_entry_long_enough)
+        {
+            continue;
+        }
+
+        $nt_prefix = substr($nt_entry, 0, 4);
+
+        $nt_prefix_is_four_digits = ctype_digit($nt_prefix);
+
+        if (! $nt_prefix_is_four_digits)
+        {
+            continue;
+        }
+
+        $nt_existing_numbers[] = (int) $nt_prefix;
+    }
+
+    $nt_has_existing = count($nt_existing_numbers) > 0;
+
+    $nt_next_number = $nt_has_existing ? (max($nt_existing_numbers) + 1) : 1;
+    $nt_file_nnnn   = sprintf("%04d", $nt_next_number);
+
+    $nt_file_slug = $nt_file_nnnn . "-" . $nt_slug;
+    $nt_file_rel  = "pm/milestones/" . $nt_ms_slug . "/open/" . $nt_file_slug . ".md";
+    $nt_file_abs  = $nt_open_dir . "/" . $nt_file_slug . ".md";
+    $nt_archive_collision_abs = $nt_archive_dir . "/" . $nt_file_slug . ".md";
+
+    # Kollisionspruefung: weder open/ noch archive/ darf das File schon haben.
+    $nt_file_collision =
+        file_exists($nt_file_abs)
+        || file_exists($nt_archive_collision_abs);
+
+    if ($nt_file_collision)
+    {
+        app::error_log("pm.php new_ticket collision: " . $nt_file_rel);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ticket existiert bereits.",
+        ]));
+    }
+
+    # Ticket-Template via HEREDOC.
+    $nt_ticket_md = <<<TICKET_MD
+# {$nt_file_nnnn} — {$nt_title_trimmed}
+
+{$nt_title_trimmed}.
+
+## Done when
+-
+
+## Verifikation
+-
+
+## Out of scope
+-
+
+TICKET_MD;
+
+    $nt_md_write_bytes = @file_put_contents($nt_file_abs, $nt_ticket_md);
+
+    $nt_md_write_ok = $nt_md_write_bytes !== false;
+
+    if (! $nt_md_write_ok)
+    {
+        app::error_log("pm.php new_ticket write failed: " . $nt_file_abs);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ticket-File konnte nicht geschrieben werden.",
+        ]));
+    }
+
+    # Bullet in milestone.md einfuegen — vor "## Out of scope" und vor der
+    # eventuellen Leerzeile davor. Atomar via tmp+rename.
+    $nt_milestone_md_abs = $nt_milestone_abs . "/milestone.md";
+
+    $nt_existing_lines = @file($nt_milestone_md_abs);
+
+    if ($nt_existing_lines === false)
+    {
+        app::error_log("pm.php new_ticket milestone.md read failed: " . $nt_milestone_md_abs);
+        # Ticket-File wurde schon geschrieben — wir lassen es liegen und
+        # melden den Fehler; manueller Eingriff ist sicherer als Auto-Rollback,
+        # weil das geschriebene Ticket gueltig ist.
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "milestone.md konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nt_bullet_line = "- [ ] open/" . $nt_file_slug . ".md — " . $nt_title_trimmed . "\n";
+
+    # Index von "## Out of scope" finden.
+    $nt_out_of_scope_index = -1;
+
+    for ($nt_i = 0; $nt_i < count($nt_existing_lines); $nt_i++)
+    {
+        $nt_line = $nt_existing_lines[$nt_i];
+
+        $nt_line_is_out_of_scope = str_starts_with(ltrim($nt_line), "## Out of scope");
+
+        if ($nt_line_is_out_of_scope)
+        {
+            $nt_out_of_scope_index = $nt_i;
+            break;
+        }
+    }
+
+    $nt_has_out_of_scope = $nt_out_of_scope_index !== -1;
+
+    if ($nt_has_out_of_scope)
+    {
+        # Insert-Position: rueckwaerts von Out-of-Scope bis zur letzten
+        # nicht-leeren Zeile; Bullet kommt DANACH (vor der Leerzeile, die
+        # "## Out of scope" voraus geht).
+        $nt_insert_index = $nt_out_of_scope_index;
+
+        for ($nt_j = $nt_out_of_scope_index - 1; $nt_j >= 0; $nt_j--)
+        {
+            $nt_prev_line          = $nt_existing_lines[$nt_j];
+            $nt_prev_line_is_blank = trim($nt_prev_line) === "";
+
+            if (! $nt_prev_line_is_blank)
+            {
+                $nt_insert_index = $nt_j + 1;
+                break;
+            }
+        }
+
+        array_splice($nt_existing_lines, $nt_insert_index, 0, [$nt_bullet_line]);
+    }
+    else
+    {
+        # Edge case: kein "## Out of scope" vorhanden. Append am Ende, mit
+        # eigener "## Tickets"-Section falls noetig.
+        $nt_has_tickets_section = false;
+
+        foreach ($nt_existing_lines as $nt_line)
+        {
+            $nt_line_is_tickets = str_starts_with(ltrim($nt_line), "## Tickets");
+
+            if ($nt_line_is_tickets)
+            {
+                $nt_has_tickets_section = true;
+                break;
+            }
+        }
+
+        if (! $nt_has_tickets_section)
+        {
+            $nt_existing_lines[] = "\n";
+            $nt_existing_lines[] = "## Tickets\n";
+        }
+
+        $nt_existing_lines[] = $nt_bullet_line;
+    }
+
+    $nt_new_milestone_md = implode("", $nt_existing_lines);
+
+    # Atomar schreiben: tmp + rename.
+    $nt_tmp_abs = $nt_milestone_md_abs . ".tmp." . bin2hex(random_bytes(4));
+
+    $nt_tmp_write_bytes = @file_put_contents($nt_tmp_abs, $nt_new_milestone_md);
+
+    $nt_tmp_write_failed = $nt_tmp_write_bytes === false;
+
+    if ($nt_tmp_write_failed)
+    {
+        app::error_log("pm.php new_ticket milestone.md tmp write failed: " . $nt_milestone_md_abs);
+
+        if (is_file($nt_tmp_abs))
+        {
+            @unlink($nt_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "milestone.md konnte nicht geschrieben werden.",
+        ]));
+    }
+
+    $nt_rename_ok = @rename($nt_tmp_abs, $nt_milestone_md_abs);
+
+    if (! $nt_rename_ok)
+    {
+        app::error_log("pm.php new_ticket milestone.md rename failed: " . $nt_milestone_md_abs);
+
+        if (is_file($nt_tmp_abs))
+        {
+            @unlink($nt_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "milestone.md Rename fehlgeschlagen.",
+        ]));
+    }
+
+    app::error_log("pm.php new_ticket: " . $nt_file_rel);
+
+    exit(json_encode([
+        "ok"   => true,
+        "path" => $nt_file_rel,
+        "slug" => $nt_file_slug,
+    ]));
+}
 
 if ($method_is_post && $action_is_new_milestone)
 {

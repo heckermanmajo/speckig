@@ -35,7 +35,7 @@ Status: planned
       `pm/milestones/NNN-slug/{milestone.md,open/.gitkeep,archive/.gitkeep}`
       an; naechste freie NNN wird automatisch bestimmt; Sidebar
       reloaded.
-- [ ] open/0006-new-ticket-action.md — Action "neues Ticket in diesem
+- [x] archive/0006-new-ticket-action.md — Action "neues Ticket in diesem
       Milestone" am Milestone-Block: Formular fuer Slug + Titel; legt
       `NNNN-slug.md` in `open/` an (mit Template aus
       `pm/how-to/milestones.md`) und ergaenzt die Bullet-Liste im

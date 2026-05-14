@@ -114,6 +114,12 @@ function render_tickets_block(string $heading, array $tickets, string $extra_lin
 // `tree_collapse.js` den Open/Closed-Zustand ueber Reloads persistieren
 // kann (Schluessel = Pfad).
 // Default zugeklappt (kein `open`-Attribut), konsistent zur Tree-View.
+//
+// "+ Ticket"-Form (M012/0006): nur fuer AKTIVE Milestones — wir erkennen
+// archiviert daran, dass der Pfad mit `pm/milestones/archive/` beginnt.
+// Archivierte Milestones sind read-only und bekommen keinen Button.
+// Submit-Logik in plan_loader.js (init_new_ticket_forms), Endpoint
+// `POST /pm.php?action=new_ticket`.
 // @end-spec
 function render_milestone_block(array $milestone): string
 {
@@ -150,6 +156,26 @@ function render_milestone_block(array $milestone): string
 
     $rendered .= render_tickets_block("Open", $milestone["tickets_open"], "");
     $rendered .= render_tickets_block("Done", $milestone["tickets_archive"], "plan-ticket-done");
+
+    # "+ Ticket"-Form nur fuer aktive Milestones — erkannt am Pfad-Praefix.
+    # Archivierte liegen unter pm/milestones/archive/, sind read-only.
+    $milestone_is_archived = str_starts_with($path, "pm/milestones/archive/");
+
+    if (! $milestone_is_archived)
+    {
+        $slug_escaped = app::escape($slug);
+
+        $rendered .= "<div class=\"plan-action-block\">";
+        $rendered .= "<button type=\"button\" class=\"btn-new-ticket\" data-milestone-slug=\"" . $slug_escaped . "\">+ Ticket</button>";
+        $rendered .= "<form class=\"new-ticket-form\" data-milestone-slug=\"" . $slug_escaped . "\" hidden>";
+        $rendered .= "<input type=\"text\" name=\"slug\"  class=\"input-slug\"  placeholder=\"slug (a-z, -)\" maxlength=\"60\" required>";
+        $rendered .= "<input type=\"text\" name=\"title\" class=\"input-title\" placeholder=\"Titel\"          maxlength=\"120\" required>";
+        $rendered .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+        $rendered .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+        $rendered .= "<span class=\"form-error\" hidden></span>";
+        $rendered .= "</form>";
+        $rendered .= "</div>";
+    }
 
     $rendered .= "</div>";
     $rendered .= "</details>";

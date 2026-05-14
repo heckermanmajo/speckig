@@ -47,6 +47,14 @@
 // `POST /pm.php?action=new_milestone` mit `{slug, title}` als JSON
 // und reloaded bei `ok:true` die Seite, damit die Sidebar den neuen
 // Milestone listet. Bei Server-Fehler wird `.form-error` befuellt.
+//
+// New-Ticket-Action (M012/0006): `init_new_ticket_forms()` macht das
+// Gleiche pro `.new-ticket-form` — eine Form pro AKTIVEM Milestone-Block.
+// Selektoren laufen RELATIV zur jeweiligen Form (`form.querySelector(...)`),
+// damit Cancel-Button und Error-Span nicht versehentlich auf die
+// new-milestone-Form oder eine fremde Ticket-Form treffen. Endpoint
+// `POST /pm.php?action=new_ticket` bekommt `{milestone_slug, slug, title}`
+// als JSON; bei `ok:true` Reload, bei Fehler die jeweilige `.form-error`.
 // @end-spec
 
 (function ()
@@ -763,6 +771,243 @@
         form_element.addEventListener("submit", on_new_milestone_submit);
     }
 
+    // ---- New-Ticket-Action (M012/0006) ------------------------------------
+    // Pro aktivem Milestone-Block in der Sidebar gibt es eine eigene
+    // `.new-ticket-form` plus zugehoerigen `.btn-new-ticket`. Beide
+    // tragen `data-milestone-slug="..."` zum Pairing; Selektoren INNERHALB
+    // einer Form laufen ueber `form.querySelector(...)`, damit wir nicht
+    // versehentlich auf andere Forms / die new-milestone-Form treffen.
+
+    function show_new_ticket_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    function on_new_ticket_button_click(event)
+    {
+        let button_element = event.currentTarget;
+
+        let milestone_slug = button_element.getAttribute("data-milestone-slug");
+
+        let slug_is_present = milestone_slug !== null && milestone_slug !== "";
+
+        if (! slug_is_present)
+        {
+            return;
+        }
+
+        let form_selector = ".new-ticket-form[data-milestone-slug=\"" + milestone_slug + "\"]";
+        let form_element  = document.querySelector(form_selector);
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (slug_input_exists)
+        {
+            slug_input.focus();
+        }
+    }
+
+    function on_new_ticket_cancel_click(event)
+    {
+        let cancel_button = event.currentTarget;
+
+        // Cancel-Button liegt INNERHALB einer .new-ticket-form — closest
+        // sucht den Form-Wrapper, damit wir die richtige Form treffen.
+        let form_element = cancel_button.closest(".new-ticket-form");
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let milestone_slug = form_element.getAttribute("data-milestone-slug");
+
+        let slug_is_present = milestone_slug !== null && milestone_slug !== "";
+
+        if (! slug_is_present)
+        {
+            return;
+        }
+
+        let button_selector = ".btn-new-ticket[data-milestone-slug=\"" + milestone_slug + "\"]";
+        let button_element  = document.querySelector(button_selector);
+
+        let slug_input  = form_element.querySelector(".input-slug");
+        let title_input = form_element.querySelector(".input-title");
+        let error_node  = form_element.querySelector(".form-error");
+
+        if (slug_input !== null)  { slug_input.value  = ""; }
+        if (title_input !== null) { title_input.value = ""; }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden = true;
+
+        if (button_element !== null)
+        {
+            button_element.hidden = false;
+        }
+    }
+
+    async function on_new_ticket_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let milestone_slug = form_element.getAttribute("data-milestone-slug");
+
+        let milestone_slug_present = milestone_slug !== null && milestone_slug !== "";
+
+        if (! milestone_slug_present)
+        {
+            show_new_ticket_error(form_element, "Milestone-Slug fehlt.");
+            return;
+        }
+
+        let slug_input  = form_element.querySelector(".input-slug");
+        let title_input = form_element.querySelector(".input-title");
+
+        let inputs_exist = slug_input !== null && title_input !== null;
+
+        if (! inputs_exist)
+        {
+            return;
+        }
+
+        let slug_value  = slug_input.value.trim();
+        let title_value = title_input.value.trim();
+
+        let slug_is_present  = slug_value !== "";
+        let title_is_present = title_value !== "";
+
+        let inputs_are_valid = slug_is_present && title_is_present;
+
+        if (! inputs_are_valid)
+        {
+            show_new_ticket_error(form_element, "Slug und Titel sind Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/pm.php?action=new_ticket",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({
+                        milestone_slug: milestone_slug,
+                        slug:           slug_value,
+                        title:          title_value,
+                    }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("plan_loader: new_ticket network error", network_failed);
+            show_new_ticket_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("plan_loader: new_ticket bad json", json_parse_failed);
+            show_new_ticket_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true;
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_ticket_error(form_element, server_message);
+            return;
+        }
+
+        window.location.reload();
+    }
+
+    function init_new_ticket_forms()
+    {
+        let buttons = document.querySelectorAll(".btn-new-ticket");
+
+        buttons.forEach(function (button_element)
+        {
+            button_element.addEventListener("click", on_new_ticket_button_click);
+        });
+
+        let forms = document.querySelectorAll(".new-ticket-form");
+
+        forms.forEach(function (form_element)
+        {
+            let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+            let cancel_button_exists = cancel_button !== null;
+
+            if (cancel_button_exists)
+            {
+                cancel_button.addEventListener("click", on_new_ticket_cancel_click);
+            }
+
+            form_element.addEventListener("submit", on_new_ticket_submit);
+        });
+    }
+
     function init_plan_loader()
     {
         let article_element = get_article_element();
@@ -798,6 +1043,11 @@
         // init_new_milestone_form ist self-guarded und tut nichts, wenn
         // Button/Form fehlen (z.B. auf info.php).
         init_new_milestone_form();
+
+        // New-Ticket-Forms (M012/0006) — eine pro aktivem Milestone in
+        // plan.php; init_new_ticket_forms ist self-guarded (no-op, wenn
+        // keine .btn-new-ticket / .new-ticket-form im DOM stehen).
+        init_new_ticket_forms();
     }
 
     document.addEventListener("DOMContentLoaded", init_plan_loader);
