@@ -1,0 +1,21 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/nim/dangling_spec.nim",
+    "language": "nim",
+    "file_spec": [
+        "Fixture exercising the dangling-spec warning when a spec block trails the last symbol."
+    ],
+    "symbols": [
+        {
+            "kind": "proc",
+            "name": "ok",
+            "signature": "proc ok(): int",
+            "spec": [
+                "Returns the constant value 1."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": [
+        "dangling spec at line 11"
+    ]
+}

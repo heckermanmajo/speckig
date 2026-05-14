@@ -1,0 +1,28 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/nim/spec_in_string.nim",
+    "language": "nim",
+    "file_spec": [
+        "Fixture verifying that ## @spec markers buried inside string literals are not parsed as spec blocks."
+    ],
+    "symbols": [
+        {
+            "kind": "let",
+            "name": "triple_payload",
+            "default": "\"\"\"\n## @spec\n## not a real spec — this lives inside a triple-string literal\n## @end-spec\n\"\"\"",
+            "spec": []
+        },
+        {
+            "kind": "let",
+            "name": "raw_payload",
+            "default": "r\"## @spec inside a raw-string is just text, not a marker\"",
+            "spec": []
+        },
+        {
+            "kind": "let",
+            "name": "plain_payload",
+            "default": "\"## @spec also harmless in a plain double-quoted string\"",
+            "spec": []
+        }
+    ],
+    "warnings": []
+}

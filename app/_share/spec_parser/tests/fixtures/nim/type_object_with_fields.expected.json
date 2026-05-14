@@ -1,0 +1,43 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/nim/type_object_with_fields.nim",
+    "language": "nim",
+    "file_spec": [
+        "Fixture for object types with per-field specs of mixed primitive types."
+    ],
+    "symbols": [
+        {
+            "kind": "object",
+            "name": "Reading",
+            "spec": [
+                "Sensor reading captured at a single point in time."
+            ],
+            "members": [
+                {
+                    "kind": "field",
+                    "name": "id",
+                    "type": "int",
+                    "spec": [
+                        "sensor identifier, monotonically assigned at boot"
+                    ]
+                },
+                {
+                    "kind": "field",
+                    "name": "label",
+                    "type": "string",
+                    "spec": [
+                        "human-readable label, may be empty until the sensor is named"
+                    ]
+                },
+                {
+                    "kind": "field",
+                    "name": "value",
+                    "type": "float",
+                    "spec": [
+                        "measured value in degrees Celsius"
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

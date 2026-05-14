@@ -7,7 +7,7 @@ Status: planned
 ## Tickets
 - [x] archive/0001-nim-architecture-and-marker.md
 - [x] archive/0002-nim-parser.md
-- [ ] open/0003-nim-fixture-tests.md
+- [x] archive/0003-nim-fixture-tests.md
 - [ ] open/0004-nim-ui-dispatch.md
 
 ## Out of scope

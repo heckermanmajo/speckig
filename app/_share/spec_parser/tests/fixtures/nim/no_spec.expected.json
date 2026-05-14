@@ -1,0 +1,34 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/nim/no_spec.nim",
+    "language": "nim",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "object",
+            "name": "Bare",
+            "spec": [],
+            "members": [
+                {
+                    "kind": "field",
+                    "name": "name",
+                    "type": "string",
+                    "spec": []
+                },
+                {
+                    "kind": "field",
+                    "name": "count",
+                    "type": "int",
+                    "spec": []
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "bare_helper",
+            "signature": "proc bare_helper(count: int): int",
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

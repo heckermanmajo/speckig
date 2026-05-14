@@ -1,0 +1,15 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/nim/block_comment.nim",
+    "language": "nim",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "proc",
+            "name": "real_proc",
+            "signature": "proc real_proc(): int",
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

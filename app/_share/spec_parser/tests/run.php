@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 // @spec
-// CLI-Test-Runner fuer den Spec-Parser (M005/0004).
-// Iteriert ueber app/_share/spec_parser/tests/fixtures/php/*.php und
-// app/_share/spec_parser/tests/fixtures/js/*.js, ruft fuer jede Fixture
+// CLI-Test-Runner fuer den Spec-Parser (M005/0004, erweitert in M007/0003).
+// Iteriert ueber app/_share/spec_parser/tests/fixtures/php/*.php,
+// app/_share/spec_parser/tests/fixtures/js/*.js und
+// app/_share/spec_parser/tests/fixtures/nim/*.nim, ruft fuer jede Fixture
 // spec_parser::parse($path) und vergleicht das Ergebnis per Deep-Compare
 // (json_decode + rekursiv) mit der zugehoerigen <name>.expected.json.
-// Druckt PASS/FAIL pro Fixture und am Ende "X/Y passed".
+// Druckt PASS/FAIL pro Fixture und am Ende "X/Y passed" plus eine
+// Pro-Sprache-Zusammenfassung "php: X/Y", "js: X/Y", "nim: X/Y".
 // Zwei Sonder-Tests sind hartkodiert (ohne Fixture-Files):
 //   - Vendor-Blacklist: spec_parser::parse("app/_share/vendor/anything.php")
 //     muss `error: "vendor code not parsed"` liefern.
@@ -39,10 +41,14 @@ $fixture_root = __DIR__ . "/fixtures";
 // @spec
 // Sammelt PASS/FAIL-Zaehler und gibt am Ende die Zusammenfassung aus.
 // Klein gehalten: globaler Zustand reicht fuer einen einzelnen Lauf.
+// $lang_counts speichert pro Sprach-Tag (php/js/nim) ein Tuple
+// [total, passed], damit am Ende eine Pro-Sprache-Zusammenfassung
+// gedruckt werden kann. Synthetische Tests laufen ohne Sprach-Tag.
 // @end-spec
 $total_count  = 0;
 $passed_count = 0;
 $failures     = [];
+$lang_counts  = [];
 
 // @spec
 // Vergleicht Erwartung und tatsaechlichen Wert tief.
@@ -168,13 +174,19 @@ function encode_for_message($value): string
 // @spec
 // Laeuft eine einzelne Fixture: parsed die Source-Datei, vergleicht mit
 // der zugehoerigen .expected.json, druckt PASS/FAIL und aktualisiert die
-// globalen Zaehler.
+// globalen Zaehler. $language ist ein Tag (z.B. "php"/"js"/"nim"),
+// das fuer die Pro-Sprache-Zusammenfassung am Ende benutzt wird.
 // @end-spec
-function run_fixture(string $source_path, string $expected_path): void
+function run_fixture(string $source_path, string $expected_path, string $language): void
 {
-    global $total_count, $passed_count, $failures;
+    global $total_count, $passed_count, $failures, $lang_counts;
 
     $total_count++;
+    if ( ! isset($lang_counts[$language]))
+    {
+        $lang_counts[$language] = ["total" => 0, "passed" => 0];
+    }
+    $lang_counts[$language]["total"]++;
 
     $expected_raw = @file_get_contents($expected_path);
     if ($expected_raw === false)
@@ -200,6 +212,7 @@ function run_fixture(string $source_path, string $expected_path): void
     {
         echo "PASS " . $source_path . "\n";
         $passed_count++;
+        $lang_counts[$language]["passed"]++;
         return;
     }
 
@@ -256,40 +269,47 @@ function run_synthetic(string $name, string $input_path, array $expected_subset)
 }
 
 // @spec
-// Iteriert ueber alle Fixture-Source-Dateien (.php + .js) im fixture root
-// und ruft fuer jede run_fixture(). Sortiert die Liste, damit die Ausgabe
-// reproduzierbar ist.
+// Iteriert ueber alle Fixture-Source-Dateien (.php + .js + .nim) im fixture
+// root und ruft fuer jede run_fixture(). Sortiert die Liste, damit die
+// Ausgabe reproduzierbar ist. Pro Sprach-Verzeichnis wird ein Sprach-Tag
+// mitgegeben (php/js/nim) — der landet in der Pro-Sprache-Zusammenfassung.
 // @end-spec
 function run_all_fixtures(string $fixture_root): void
 {
     $php_glob = glob($fixture_root . "/php/*.php");
     $js_glob  = glob($fixture_root . "/js/*.js");
+    $nim_glob = glob($fixture_root . "/nim/*.nim");
 
     if ($php_glob === false) { $php_glob = []; }
     if ($js_glob  === false) { $js_glob  = []; }
+    if ($nim_glob === false) { $nim_glob = []; }
 
     sort($php_glob);
     sort($js_glob);
+    sort($nim_glob);
 
-    $all = array_merge($php_glob, $js_glob);
+    $groups = [
+        ["lang" => "php", "ext" => ".php", "files" => $php_glob],
+        ["lang" => "js",  "ext" => ".js",  "files" => $js_glob],
+        ["lang" => "nim", "ext" => ".nim", "files" => $nim_glob],
+    ];
 
-    foreach ($all as $abs_path)
+    foreach ($groups as $group)
     {
-        $expected_path = $abs_path . ".expected.json";
-        if (substr($abs_path, -4) === ".php")
-        {
-            $expected_path = substr($abs_path, 0, -4) . ".expected.json";
-        }
-        else if (substr($abs_path, -3) === ".js")
-        {
-            $expected_path = substr($abs_path, 0, -3) . ".expected.json";
-        }
+        $ext     = $group["ext"];
+        $lang    = $group["lang"];
+        $ext_len = strlen($ext);
 
-        // Fixtures call the parser with a repo-relative-ish path so the
-        // resulting "file" field stays stable across machines.
-        $repo_relative = derive_repo_relative_path($abs_path);
+        foreach ($group["files"] as $abs_path)
+        {
+            $expected_path = substr($abs_path, 0, -$ext_len) . ".expected.json";
 
-        run_fixture($repo_relative, $expected_path);
+            // Fixtures call the parser with a repo-relative-ish path so the
+            // resulting "file" field stays stable across machines.
+            $repo_relative = derive_repo_relative_path($abs_path);
+
+            run_fixture($repo_relative, $expected_path, $lang);
+        }
     }
 }
 
@@ -342,6 +362,29 @@ run_synthetic(
 
 echo "\n";
 echo $passed_count . "/" . $total_count . " passed\n";
+
+if ( ! empty($lang_counts))
+{
+    // Stable order: php, js, nim, then anything else alphabetically.
+    $preferred_order = ["php", "js", "nim"];
+    $printed = [];
+    foreach ($preferred_order as $lang)
+    {
+        if (isset($lang_counts[$lang]))
+        {
+            echo $lang . ": " . $lang_counts[$lang]["passed"]
+                . "/" . $lang_counts[$lang]["total"] . "\n";
+            $printed[$lang] = true;
+        }
+    }
+    $other = array_keys(array_diff_key($lang_counts, $printed));
+    sort($other);
+    foreach ($other as $lang)
+    {
+        echo $lang . ": " . $lang_counts[$lang]["passed"]
+            . "/" . $lang_counts[$lang]["total"] . "\n";
+    }
+}
 
 if ($passed_count !== $total_count)
 {
