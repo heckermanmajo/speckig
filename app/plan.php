@@ -215,6 +215,20 @@ function render_bugs_block(string $heading, array $bugs, string $section_data_pa
 
 $sidebar_html = "";
 
+# Neuer-Milestone-Action (M012/0005): Button + verstecktes Inline-Formular.
+# Submit-Logik lebt in plan_loader.js (init_new_milestone_form), Endpoint
+# ist `POST /pm.php?action=new_milestone`.
+$sidebar_html .= "<div class=\"plan-action-block\">";
+$sidebar_html .= "<button type=\"button\" class=\"btn-new-milestone\">+ Milestone</button>";
+$sidebar_html .= "<form class=\"new-milestone-form\" hidden>";
+$sidebar_html .= "<input type=\"text\" name=\"slug\"  class=\"input-slug\"  placeholder=\"slug (a-z, -)\" maxlength=\"60\" required>";
+$sidebar_html .= "<input type=\"text\" name=\"title\" class=\"input-title\" placeholder=\"Titel\"          maxlength=\"120\" required>";
+$sidebar_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+$sidebar_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+$sidebar_html .= "<span class=\"form-error\" hidden></span>";
+$sidebar_html .= "</form>";
+$sidebar_html .= "</div>";
+
 # Milestones-Section
 $sidebar_html .= "<h2 class=\"plan-section-heading\">Milestones</h2>";
 

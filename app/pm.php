@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 // @spec
 // JSON-Endpoint fuer den Plan-View AJAX-Loader (M006/0003) plus
-// Save-Endpoint fuer den CodeMirror-Editor (M012/0002).
+// Save-Endpoint fuer den CodeMirror-Editor (M012/0002) plus
+// new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
+// POST ?action=new_milestone         -> Neuen Milestone-Folder anlegen.
+//                                       Body JSON: {slug, title}.
+//                                       Antwort: {ok:true, slug, path}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
-// Fehler : HTTP 400/413/500 + { ok: false, message }.
+// Fehler : HTTP 400/409/500 + { ok: false, message }.
 //
 // `status`-Ableitung (GET):
 //   - Tickets unter `pm/.../open/...` -> "open"
@@ -59,6 +63,267 @@ $repo_root_abs = realpath(__DIR__ . "/..");
 $method_is_post = $_SERVER["REQUEST_METHOD"] === "POST";
 $action         = isset($_GET["action"]) ? (string) $_GET["action"] : "";
 $action_is_save = $action === "save";
+$action_is_new_milestone = $action === "new_milestone";
+
+if ($method_is_post && $action_is_new_milestone)
+{
+    // @spec
+    // POST ?action=new_milestone legt einen neuen Milestone-Folder an.
+    // Vertrag:
+    //   - Body JSON: {"slug": "...", "title": "..."}.
+    //   - slug: 1-60 Zeichen, ausschliesslich [a-z0-9-], kein fuehrender
+    //     oder abschliessender Bindestrich. Sonst 400.
+    //   - title: getrimmt 1-120 Zeichen. Sonst 400.
+    //   - Naechste freie NNN = max(NNN unter pm/milestones/ UND
+    //     pm/milestones/archive/) + 1, dreistellig.
+    //   - Legt pm/milestones/NNN-<slug>/{milestone.md, open/.gitkeep,
+    //     archive/.gitkeep} an. Bei Kollision 409.
+    //   - Antwort 200 + {ok:true, slug:"NNN-<slug>", path:"pm/milestones/NNN-<slug>"}.
+    //   - Jede Abweisung wird via app::error_log() protokolliert.
+    // @end-spec
+
+    $nm_body_raw = file_get_contents("php://input");
+
+    $nm_body_read_failed = $nm_body_raw === false;
+
+    if ($nm_body_read_failed)
+    {
+        app::error_log("pm.php new_milestone body read failed.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nm_payload = json_decode($nm_body_raw, true);
+
+    $nm_payload_is_object =
+        is_array($nm_payload)
+        && json_last_error() === JSON_ERROR_NONE;
+
+    if (! $nm_payload_is_object)
+    {
+        app::error_log("pm.php new_milestone rejected: body ist kein JSON.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nm_slug_raw  = isset($nm_payload["slug"]) ? $nm_payload["slug"] : null;
+    $nm_title_raw = isset($nm_payload["title"]) ? $nm_payload["title"] : null;
+
+    # Slug validieren: muss String sein, 1-60 Zeichen, nur [a-z0-9-],
+    # kein fuehrender/abschliessender Bindestrich.
+    $nm_slug_is_string = is_string($nm_slug_raw);
+    $nm_slug           = $nm_slug_is_string ? $nm_slug_raw : "";
+
+    $nm_slug_length_ok =
+        $nm_slug_is_string
+        && strlen($nm_slug) >= 1
+        && strlen($nm_slug) <= 60;
+
+    $nm_slug_charset_ok =
+        $nm_slug_length_ok
+        && preg_match('/^[a-z0-9-]+$/', $nm_slug) === 1;
+
+    $nm_slug_no_edge_dash =
+        $nm_slug_charset_ok
+        && $nm_slug[0] !== "-"
+        && $nm_slug[strlen($nm_slug) - 1] !== "-";
+
+    $nm_slug_is_valid = $nm_slug_no_edge_dash;
+
+    if (! $nm_slug_is_valid)
+    {
+        app::error_log("pm.php new_milestone rejected slug: " . (string) $nm_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger slug.",
+        ]));
+    }
+
+    # Titel validieren: muss String sein, getrimmt 1-120 Zeichen.
+    $nm_title_is_string = is_string($nm_title_raw);
+    $nm_title_trimmed   = $nm_title_is_string ? trim($nm_title_raw) : "";
+
+    $nm_title_is_valid =
+        $nm_title_is_string
+        && strlen($nm_title_trimmed) >= 1
+        && strlen($nm_title_trimmed) <= 120;
+
+    if (! $nm_title_is_valid)
+    {
+        app::error_log("pm.php new_milestone rejected title for slug: " . $nm_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Titel.",
+        ]));
+    }
+
+    # Naechste freie NNN bestimmen: scan beide Verzeichnisse.
+    $nm_milestones_dir = $repo_root_abs . "/pm/milestones";
+    $nm_archive_dir    = $repo_root_abs . "/pm/milestones/archive";
+
+    $nm_active_entries  = @scandir($nm_milestones_dir);
+    $nm_archive_entries = @scandir($nm_archive_dir);
+
+    if ($nm_active_entries === false)
+    {
+        app::error_log("pm.php new_milestone scandir failed for milestones dir.");
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Milestones-Verzeichnis konnte nicht gelesen werden.",
+        ]));
+    }
+
+    if ($nm_archive_entries === false)
+    {
+        # Archive-Folder muss existieren (das Repo hat ihn); aber wenn er
+        # mal nicht da ist, behandeln wir die Liste als leer und arbeiten
+        # weiter — der Folder wird hier nicht angelegt.
+        $nm_archive_entries = [];
+    }
+
+    $nm_all_entries = array_merge($nm_active_entries, $nm_archive_entries);
+
+    $nm_existing_numbers = [];
+
+    foreach ($nm_all_entries as $nm_entry)
+    {
+        $nm_entry_is_dotted = $nm_entry === "." || $nm_entry === "..";
+
+        if ($nm_entry_is_dotted)
+        {
+            continue;
+        }
+
+        $nm_entry_long_enough = strlen($nm_entry) >= 3;
+
+        if (! $nm_entry_long_enough)
+        {
+            continue;
+        }
+
+        $nm_prefix = substr($nm_entry, 0, 3);
+
+        $nm_prefix_is_three_digits = ctype_digit($nm_prefix);
+
+        if (! $nm_prefix_is_three_digits)
+        {
+            continue;
+        }
+
+        $nm_existing_numbers[] = (int) $nm_prefix;
+    }
+
+    $nm_has_existing = count($nm_existing_numbers) > 0;
+
+    $nm_next_number = $nm_has_existing ? (max($nm_existing_numbers) + 1) : 1;
+    $nm_folder_nnn  = sprintf("%03d", $nm_next_number);
+
+    $nm_folder_slug = $nm_folder_nnn . "-" . $nm_slug;
+    $nm_folder_rel  = "pm/milestones/" . $nm_folder_slug;
+    $nm_folder_abs  = $nm_milestones_dir . "/" . $nm_folder_slug;
+
+    $nm_folder_collision = file_exists($nm_folder_abs);
+
+    if ($nm_folder_collision)
+    {
+        app::error_log("pm.php new_milestone collision: " . $nm_folder_slug);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Milestone existiert bereits.",
+        ]));
+    }
+
+    # Folder + Unterordner + Files anlegen.
+    $nm_mkdir_root = @mkdir($nm_folder_abs, 0755, true);
+
+    if (! $nm_mkdir_root)
+    {
+        app::error_log("pm.php new_milestone mkdir failed: " . $nm_folder_abs);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Folder konnte nicht angelegt werden.",
+        ]));
+    }
+
+    $nm_mkdir_open    = @mkdir($nm_folder_abs . "/open", 0755);
+    $nm_mkdir_archive = @mkdir($nm_folder_abs . "/archive", 0755);
+
+    $nm_subdirs_ok = $nm_mkdir_open && $nm_mkdir_archive;
+
+    if (! $nm_subdirs_ok)
+    {
+        app::error_log("pm.php new_milestone mkdir subdirs failed: " . $nm_folder_abs);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Unterordner konnten nicht angelegt werden.",
+        ]));
+    }
+
+    $nm_gitkeep_open    = @file_put_contents($nm_folder_abs . "/open/.gitkeep", "");
+    $nm_gitkeep_archive = @file_put_contents($nm_folder_abs . "/archive/.gitkeep", "");
+
+    $nm_gitkeeps_ok =
+        $nm_gitkeep_open !== false
+        && $nm_gitkeep_archive !== false;
+
+    if (! $nm_gitkeeps_ok)
+    {
+        app::error_log("pm.php new_milestone gitkeep write failed: " . $nm_folder_abs);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Gitkeep-Files konnten nicht geschrieben werden.",
+        ]));
+    }
+
+    # milestone.md-Template via HEREDOC.
+    $nm_milestone_md = <<<MILESTONE_MD
+# {$nm_folder_nnn} — {$nm_title_trimmed}
+
+Goal: {$nm_title_trimmed}.
+
+Status: planned
+
+## Tickets
+
+## Out of scope
+
+MILESTONE_MD;
+
+    $nm_md_write_bytes = @file_put_contents($nm_folder_abs . "/milestone.md", $nm_milestone_md);
+
+    $nm_md_write_ok = $nm_md_write_bytes !== false;
+
+    if (! $nm_md_write_ok)
+    {
+        app::error_log("pm.php new_milestone milestone.md write failed: " . $nm_folder_abs);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "milestone.md konnte nicht geschrieben werden.",
+        ]));
+    }
+
+    app::error_log("pm.php new_milestone: " . $nm_folder_slug);
+
+    exit(json_encode([
+        "ok"   => true,
+        "slug" => $nm_folder_slug,
+        "path" => $nm_folder_rel,
+    ]));
+}
 
 if ($method_is_post && $action_is_save)
 {

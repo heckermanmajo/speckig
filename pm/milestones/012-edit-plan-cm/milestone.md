@@ -30,7 +30,7 @@ Status: planned
       weil derselbe Loader laeuft), nur sichtbar wenn ein Pfad geladen
       ist und nicht unter `archive/`. Plan-Loader holt vor dem Render
       `raw`-Inhalt mit, damit `Edit` ohne Server-Roundtrip startet.
-- [ ] open/0005-new-milestone-action.md — Action "neuer Milestone" oben
+- [x] archive/0005-new-milestone-action.md — Action "neuer Milestone" oben
       in der Plan-Sidebar: Formular fuer Slug + Titel; legt
       `pm/milestones/NNN-slug/{milestone.md,open/.gitkeep,archive/.gitkeep}`
       an; naechste freie NNN wird automatisch bestimmt; Sidebar

@@ -38,6 +38,15 @@
 // `speckig_editor.save(current_path)` + Re-Load; Cancel verwirft den
 // Buffer per `destroy()` + Re-Load. Der Editor-Layer (editor.js) ist
 // fuer DOM-Layout/Buttons nicht zustaendig — das macht alles hier.
+//
+// New-Milestone-Action (M012/0005): `init_new_milestone_form()` bindet
+// einen Click-Handler an `.btn-new-milestone` (zeigt das versteckte
+// `.new-milestone-form`), einen Cancel-Handler an `.btn-cancel-form`
+// (schliesst das Formular wieder und raeumt Inputs/Error) und einen
+// Submit-Handler an `.new-milestone-form`. Der Submit ruft
+// `POST /pm.php?action=new_milestone` mit `{slug, title}` als JSON
+// und reloaded bei `ok:true` die Seite, damit die Sidebar den neuen
+// Milestone listet. Bei Server-Fehler wird `.form-error` befuellt.
 // @end-spec
 
 (function ()
@@ -563,6 +572,197 @@
         show_initial_placeholder();
     }
 
+    // ---- New-Milestone-Action (M012/0005) ---------------------------------
+    // Sidebar-Button "+ Milestone" zeigt ein verstecktes Inline-Formular;
+    // Submit POSTet JSON an /pm.php?action=new_milestone und reloaded
+    // bei Erfolg die Seite, damit die Sidebar den neuen Milestone listet.
+
+    function on_new_milestone_button_click()
+    {
+        let form_element   = document.querySelector(".new-milestone-form");
+        let button_element = document.querySelector(".btn-new-milestone");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (slug_input_exists)
+        {
+            slug_input.focus();
+        }
+    }
+
+    function on_new_milestone_cancel_click()
+    {
+        let form_element   = document.querySelector(".new-milestone-form");
+        let button_element = document.querySelector(".btn-new-milestone");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        let slug_input  = form_element.querySelector(".input-slug");
+        let title_input = form_element.querySelector(".input-title");
+        let error_node  = form_element.querySelector(".form-error");
+
+        if (slug_input !== null)  { slug_input.value  = ""; }
+        if (title_input !== null) { title_input.value = ""; }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden   = true;
+        button_element.hidden = false;
+    }
+
+    function show_new_milestone_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    async function on_new_milestone_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let slug_input  = form_element.querySelector(".input-slug");
+        let title_input = form_element.querySelector(".input-title");
+
+        let inputs_exist = slug_input !== null && title_input !== null;
+
+        if (! inputs_exist)
+        {
+            return;
+        }
+
+        let slug_value  = slug_input.value.trim();
+        let title_value = title_input.value.trim();
+
+        let slug_is_present  = slug_value !== "";
+        let title_is_present = title_value !== "";
+
+        let inputs_are_valid = slug_is_present && title_is_present;
+
+        if (! inputs_are_valid)
+        {
+            show_new_milestone_error(form_element, "Slug und Titel sind Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/pm.php?action=new_milestone",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({ slug: slug_value, title: title_value }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("plan_loader: new_milestone network error", network_failed);
+            show_new_milestone_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("plan_loader: new_milestone bad json", json_parse_failed);
+            show_new_milestone_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true;
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_milestone_error(form_element, server_message);
+            return;
+        }
+
+        window.location.reload();
+    }
+
+    function init_new_milestone_form()
+    {
+        let button_element = document.querySelector(".btn-new-milestone");
+        let form_element   = document.querySelector(".new-milestone-form");
+
+        let elements_exist = button_element !== null && form_element !== null;
+
+        if (! elements_exist)
+        {
+            return;
+        }
+
+        button_element.addEventListener("click", on_new_milestone_button_click);
+
+        let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+        let cancel_button_exists = cancel_button !== null;
+
+        if (cancel_button_exists)
+        {
+            cancel_button.addEventListener("click", on_new_milestone_cancel_click);
+        }
+
+        form_element.addEventListener("submit", on_new_milestone_submit);
+    }
+
     function init_plan_loader()
     {
         let article_element = get_article_element();
@@ -593,6 +793,11 @@
             history.replaceState({ path: initial_path }, "", window.location.pathname + window.location.search);
             load_plan_path(initial_path, false);
         }
+
+        // New-Milestone-Form (M012/0005) — nur in plan.php vorhanden;
+        // init_new_milestone_form ist self-guarded und tut nichts, wenn
+        // Button/Form fehlen (z.B. auf info.php).
+        init_new_milestone_form();
     }
 
     document.addEventListener("DOMContentLoaded", init_plan_loader);

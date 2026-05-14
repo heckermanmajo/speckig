@@ -109,3 +109,27 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
 {
     margin-top: 1rem;
 }
+
+/* New-milestone form (M012/0005). */
+.plan-action-block
+{
+    margin-bottom: 1rem;
+}
+
+.btn-new-milestone
+{
+    width: 100%;
+}
+
+.new-milestone-form
+{
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.new-milestone-form .form-error
+{
+    color: #c00;
+}
