@@ -1,4 +1,7 @@
 <?php
+// @spec
+// Admin-only action that validates inputs and inserts a new User row, exposing the created id.
+// @end-spec
 
 namespace user\actions;
 
@@ -10,13 +13,31 @@ use _share\exceptions\UserInputError;
 use user\data\User;
 
 
+// @spec
+// Action: create a new User row after admin gate and input validation; result carries the new id.
+// @end-spec
 final class CreateUserAction extends Action
 {
 
+    // @spec id of the user this action created; 0 before execute() ran
+    // @end-spec
     public int $created_user_id = 0;
 
     function __construct() {}
 
+    // @spec
+    // Enforce admin, validate username/password/email, ensure username is unique, then save the new user.
+    // calls app::enforce_plattform_admin, which throws NeedsLoginError or NotAllowedError if the caller is not a platform admin
+    // throws UserInputError if username is empty after trim
+    // throws UserInputError if password is empty
+    // throws UserInputError if username length is not in 2..64
+    // throws UserInputError if password is shorter than 6 characters
+    // throws UserInputError if a non-empty email fails FILTER_VALIDATE_EMAIL
+    // throws UserInputError if a User row already exists with the same username
+    // throws BadStateError if db::save returns without assigning an id
+    // password is stored as a password_hash, never plaintext
+    // is_admin is set to 1 only when the input string equals "1"
+    // @end-spec
     static function execute(
         string $username,
         string $password,
