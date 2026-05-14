@@ -396,9 +396,7 @@
 
         let html_pieces = [];
 
-        html_pieces.push("<details class=\"spec-view\" open>");
-        html_pieces.push("<summary class=\"spec-view-summary\">Spec</summary>");
-        html_pieces.push("<div class=\"spec-view-body\">");
+        html_pieces.push("<div class=\"spec-view\">");
 
         let file_spec_list = Array.isArray(spec_object.file_spec) ? spec_object.file_spec : [];
         let file_spec_has_entries = file_spec_list.length > 0;
@@ -428,9 +426,90 @@
         html_pieces.push(render_warnings(spec_object.warnings));
 
         html_pieces.push("</div>");
-        html_pieces.push("</details>");
 
         return html_pieces.join("");
+    }
+
+    // --- tab shell (M005/0005-followup) ------------------------------------
+    //
+    // render_tabs_shell baut einen Tab-Switcher mit zwei Tabs (Spec / Code).
+    // Default-aktiv ist Spec, wenn vorhanden — sonst Code (und Spec-Tab
+    // ist disabled). Spec-Inhalt ist die schon gerenderte spec-view (oder
+    // ein "keine Spec"-Hinweis), Code-Inhalt ist data.html.
+    //
+    // Tab-Switching ist reines DOM-Klassen-Toggle, kein Re-Render.
+
+    function render_tabs_shell(spec_view_html, code_html, spec_is_present)
+    {
+        let spec_panel_class = spec_is_present ? "content-tab-panel active" : "content-tab-panel";
+        let code_panel_class = spec_is_present ? "content-tab-panel" : "content-tab-panel active";
+
+        let spec_button_class = spec_is_present ? "content-tab-button active" : "content-tab-button disabled";
+        let code_button_class = spec_is_present ? "content-tab-button" : "content-tab-button active";
+
+        let spec_button_attrs = spec_is_present
+            ? "data-target=\"spec\""
+            : "data-target=\"spec\" disabled aria-disabled=\"true\"";
+
+        let spec_panel_inner = spec_is_present
+            ? spec_view_html
+            : "<p class=\"content-tab-empty\">Diese Datei hat noch keine Spec.</p>";
+
+        let html = "";
+
+        html += "<div class=\"content-tabs\">";
+        html += "<div class=\"content-tab-bar\">";
+        html += "<button class=\"" + spec_button_class + "\" " + spec_button_attrs + ">Spec</button>";
+        html += "<button class=\"" + code_button_class + "\" data-target=\"code\">Code</button>";
+        html += "</div>";
+        html += "<div class=\"" + spec_panel_class + "\" data-panel=\"spec\">" + spec_panel_inner + "</div>";
+        html += "<div class=\"" + code_panel_class + "\" data-panel=\"code\">" + code_html + "</div>";
+        html += "</div>";
+
+        return html;
+    }
+
+    function attach_tab_handlers(article_element)
+    {
+        let buttons = article_element.querySelectorAll(".content-tab-button");
+
+        buttons.forEach(function (button_element)
+        {
+            let button_is_disabled = button_element.hasAttribute("disabled");
+
+            if (button_is_disabled)
+            {
+                return;
+            }
+
+            button_element.addEventListener("click", function ()
+            {
+                let target_name = button_element.getAttribute("data-target");
+
+                let all_buttons = article_element.querySelectorAll(".content-tab-button");
+                all_buttons.forEach(function (other_button)
+                {
+                    other_button.classList.remove("active");
+                });
+                button_element.classList.add("active");
+
+                let all_panels = article_element.querySelectorAll(".content-tab-panel");
+                all_panels.forEach(function (panel_element)
+                {
+                    let panel_name = panel_element.getAttribute("data-panel");
+                    let panel_is_target = panel_name === target_name;
+
+                    if (panel_is_target)
+                    {
+                        panel_element.classList.add("active");
+                    }
+                    else
+                    {
+                        panel_element.classList.remove("active");
+                    }
+                });
+            });
+        });
     }
 
     async function load_path(path, do_push_state)
@@ -485,8 +564,10 @@
         }
 
         let spec_view_html = render_spec_view(data.spec);
+        let spec_view_is_present = spec_view_html !== "";
 
-        article_element.innerHTML = spec_view_html + data.html;
+        article_element.innerHTML = render_tabs_shell(spec_view_html, data.html, spec_view_is_present);
+        attach_tab_handlers(article_element);
         set_header_label(path);
         set_document_title(path);
 

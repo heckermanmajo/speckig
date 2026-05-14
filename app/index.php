@@ -85,7 +85,7 @@ if ($path_was_requested && ! $path_is_valid)
 
 # --- Tree rekursiv aufbauen --------------------------------------------------
 # render_tree() liest ein Verzeichnis und gibt verschachtelte
-# <details open><summary>...</summary>...<a>...</a></details>-Bloecke zurueck.
+# <details><summary>...</summary>...<a>...</a></details>-Bloecke zurueck.
 # Sortierung: Ordner zuerst, dann Dateien, jeweils alphabetisch.
 # Versteckte Eintraege (Punkt-Prefix) werden uebersprungen.
 
@@ -160,7 +160,7 @@ function render_tree(string $dir_abs, string $rel_prefix): string
         $sub_dir_rel_path    = $rel_prefix . $sub_dir_name;
         $visible_child_count = count_visible_children($sub_dir_abs);
 
-        $rendered_html .= "<details open data-path=\"" . \_share\app::escape($sub_dir_rel_path) . "\">";
+        $rendered_html .= "<details data-path=\"" . \_share\app::escape($sub_dir_rel_path) . "\">";
         $rendered_html .= "<summary>";
         $rendered_html .= \_share\app::escape($sub_dir_name) . "/";
         $rendered_html .= " <span style=\"color:#888\">(" . $visible_child_count . ")</span>";
@@ -215,11 +215,8 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
         nav a:hover { text-decoration: underline; }
         article pre { white-space: pre-wrap; word-wrap: break-word; }
 
-        /* spec-view (M005/0005): kollabierbare Spec-Ansicht ueber dem Code. */
-        .spec-view { margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
-        .spec-view-summary { padding: 0.4rem 0.75rem; cursor: pointer; font-weight: 600; background: #f0f0f0; border-radius: 4px 4px 0 0; }
-        .spec-view[open] .spec-view-summary { border-bottom: 1px solid #ccc; border-radius: 4px 4px 0 0; }
-        .spec-view-body { padding: 0.75rem; }
+        /* spec-view: Inhalt des Spec-Tabs. Aufklappen erledigt der Tab-Switcher. */
+        .spec-view { padding: 0.5rem 0.25rem; }
         .spec-view-file-spec { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #ddd; }
         .spec-view-symbols, .spec-view-members { list-style: none; padding-left: 0; margin: 0; }
         .spec-view-members { margin-left: 1rem; padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-top: 0.5rem; }
@@ -228,6 +225,17 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
         .spec-view-spec-line { margin: 0.15rem 0 0.25rem 0.5rem; color: #444; font-size: 0.92rem; }
         .spec-view-warnings { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed #ddd; }
         .spec-view-warning { margin: 0.15rem 0; color: #884; font-size: 0.88rem; }
+
+        /* content tabs (Spec / Code switcher im rechten Panel). */
+        .content-tabs { display: flex; flex-direction: column; }
+        .content-tab-bar { display: flex; gap: 0.25rem; border-bottom: 1px solid #ccc; margin-bottom: 0.75rem; }
+        .content-tab-button { background: #f0f0f0; border: 1px solid #ccc; border-bottom: none; padding: 0.4rem 0.9rem; font: inherit; cursor: pointer; border-radius: 4px 4px 0 0; color: #333; }
+        .content-tab-button:hover:not(.disabled):not(.active) { background: #e8e8e8; }
+        .content-tab-button.active { background: #fff; border-bottom: 1px solid #fff; margin-bottom: -1px; font-weight: 600; }
+        .content-tab-button.disabled { color: #aaa; cursor: not-allowed; background: #f7f7f7; }
+        .content-tab-panel { display: none; }
+        .content-tab-panel.active { display: block; }
+        .content-tab-empty { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
