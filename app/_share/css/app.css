@@ -169,3 +169,11 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
     gap: 0.25rem;
     margin-top: 0.25rem;
 }
+
+/* Delete-Button im Code-Tab (M013/0005): rot, damit "destruktive Aktion"
+ * visuell sofort erkennbar ist. Confirm-Dialog ist die eigentliche
+ * Schutzschicht; die Farbe ist nur Hinweis. */
+.btn-delete
+{
+    color: #c00;
+}

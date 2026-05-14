@@ -38,6 +38,13 @@ declare(strict_types=1);
 #                                       Name-Pattern `[A-Za-z0-9._-]{1,120}`,
 #                                       kein fuehrender Punkt. 409 bei
 #                                       Kollision. Siehe M013/0004.
+# POST ?action=delete_file&path=...  -> Loescht eine Datei unter SPECKIG_ROOT.
+#                                       Pfad-Validierung analog Save (kein `..`,
+#                                       kein fuehrender `/`, realpath innerhalb
+#                                       Root). Schwarzliste analog Save
+#                                       (vendor/.git/spec_parser). Nur Dateien,
+#                                       keine Verzeichnisse. unlink() ist
+#                                       atomar im POSIX-Sinn. Siehe M013/0005.
 # Erfolg : HTTP 200 + JSON (Form je nach Aktion).
 # Fehler : HTTP 400/409/413/500 + { ok: false, message }.
 # @end-spec
@@ -73,10 +80,11 @@ else
 # Save kommt VOR dem GET-Pfad, damit der bestehende Read-Pfad unangetastet
 # bleibt. Siehe M013/0001.
 
-$method_is_post     = $_SERVER["REQUEST_METHOD"] === "POST";
-$action             = isset($_GET["action"]) ? (string) $_GET["action"] : "";
-$action_is_save     = $action === "save";
-$action_is_new_file = $action === "new_file";
+$method_is_post        = $_SERVER["REQUEST_METHOD"] === "POST";
+$action                = isset($_GET["action"]) ? (string) $_GET["action"] : "";
+$action_is_save        = $action === "save";
+$action_is_new_file    = $action === "new_file";
+$action_is_delete_file = $action === "delete_file";
 
 if ($method_is_post && $action_is_save)
 {
@@ -547,6 +555,138 @@ if ($method_is_post && $action_is_new_file)
     exit(json_encode([
         "ok"   => true,
         "path" => $nf_response_path,
+    ]));
+}
+
+# --- Method-Dispatch: POST ?action=delete_file ------------------------------
+# Loescht eine Datei unter SPECKIG_ROOT. Siehe M013/0005.
+#
+# Hinweis: Die Editierbar-Schwarzliste lebt jetzt VIERFACH inline (Save, GET-
+# editable, new_file, delete_file). Konsolidierung in einen Helper ist Folge-
+# Ticket; bewusst inline gehalten, um Premature-Abstraktion zu vermeiden
+# (siehe code_style.md).
+
+if ($method_is_post && $action_is_delete_file)
+{
+    // @spec
+    // POST ?action=delete_file&path=... loescht die Zieldatei unter
+    // SPECKIG_ROOT. Vertrag:
+    //   - `path`: kein `..`, kein fuehrender `/`. realpath muss innerhalb
+    //     SPECKIG_ROOT liegen und auf eine echte Datei zeigen (nicht auf
+    //     ein Verzeichnis und nicht ins Nichts).
+    //   - Schwarzliste (Prefix + Substring): `app/_share/vendor/`, `.git/`,
+    //     `app/_share/spec_parser/`. Treffer -> 400 `Pfad nicht editierbar.`.
+    //   - is_file($abs) false (Verzeichnis oder existiert nicht) -> 400
+    //     `Pfad ist keine Datei.`.
+    //   - `unlink($abs)` ist atomar im POSIX-Sinn (Verzeichniseintrag
+    //     verschwindet entweder oder nicht). Bei false -> 500
+    //     `Loeschen fehlgeschlagen.`.
+    //   - Antwort: 200 + {ok:true, path}.
+    //   - Jede Abweisung loggt via `app::error_log()`; Erfolg loggt auch.
+    // @end-spec
+
+    $del_raw_path = isset($_GET["path"]) ? (string) $_GET["path"] : "";
+
+    $del_path_was_requested = $del_raw_path !== "";
+
+    $del_path_string_is_safe =
+        $del_path_was_requested
+        && ! str_contains($del_raw_path, "..")
+        && $del_raw_path[0] !== "/";
+
+    if (! $del_path_string_is_safe)
+    {
+        app::error_log("file.php delete rejected path (string): " . $del_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
+
+    # Schwarzliste analog Save: Prefix UND Substring (defensive Schicht).
+    $del_blacklist = [
+        "app/_share/vendor/",
+        ".git/",
+        "app/_share/spec_parser/",
+    ];
+
+    $del_path_is_blacklisted = false;
+
+    foreach ($del_blacklist as $bl_entry)
+    {
+        $hits_prefix    = str_starts_with($del_raw_path, $bl_entry);
+        $hits_substring = str_contains($del_raw_path, $bl_entry);
+
+        if ($hits_prefix || $hits_substring)
+        {
+            $del_path_is_blacklisted = true;
+            break;
+        }
+    }
+
+    if ($del_path_is_blacklisted)
+    {
+        app::error_log("file.php delete rejected blacklisted path: " . $del_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Pfad nicht editierbar.",
+        ]));
+    }
+
+    # realpath aufloesen, muss innerhalb SPECKIG_ROOT liegen.
+    $del_target_abs = realpath($speckig_root_abs . "/" . $del_raw_path);
+
+    $del_target_resolves =
+        $speckig_root_abs !== false
+        && $del_target_abs !== false;
+
+    $del_target_is_inside_root =
+        $del_target_resolves
+        && str_starts_with($del_target_abs, $speckig_root_abs . DIRECTORY_SEPARATOR);
+
+    if (! $del_target_is_inside_root)
+    {
+        app::error_log("file.php delete rejected path (fs): " . $del_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
+
+    # Nur Dateien — Verzeichnisse explizit ablehnen, mit eigener Message,
+    # damit das Frontend ggf. unterscheiden kann.
+    $del_target_is_file = is_file($del_target_abs);
+
+    if (! $del_target_is_file)
+    {
+        app::error_log("file.php delete rejected non-file: " . $del_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Pfad ist keine Datei.",
+        ]));
+    }
+
+    $del_unlink_ok = @unlink($del_target_abs);
+
+    if (! $del_unlink_ok)
+    {
+        app::error_log("file.php delete unlink failed for: " . $del_raw_path);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Loeschen fehlgeschlagen.",
+        ]));
+    }
+
+    app::error_log("file.php delete removed: " . $del_raw_path);
+
+    exit(json_encode([
+        "ok"   => true,
+        "path" => $del_raw_path,
     ]));
 }
 

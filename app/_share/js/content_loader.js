@@ -36,6 +36,14 @@
 // laufen RELATIV zur eigenen Form (`form.querySelector(".form-error")`
 // usw.), damit nichts in die plan_loader-Forms bleedet — `.btn-cancel-form`
 // und `.form-error` existieren in beiden Welten.
+//
+// Delete-Action (M013/0005): vierter Button `.btn-delete` in der Code-Tab-
+// Toolbar, sichtbar exakt wenn der Edit-Modus NICHT aktiv ist (also parallel
+// zum `.btn-edit`). Click triggert `window.confirm("…?")` und POSTet bei
+// Bestaetigung an `/file.php?action=delete_file&path=…`. Bei Erfolg geht
+// das Content-Panel zurueck auf den Platzhalter und die Seite reloaded
+// (Tree-Refresh). Bei Fehler erscheint eine `.toolbar-error` ueber der
+// Toolbar — analog zum Save-Error-Pfad.
 
 (function ()
 {
@@ -716,6 +724,14 @@
         btn_edit.textContent = "Edit";
         btn_edit.addEventListener("click", on_edit_click);
 
+        // Delete-Button (M013/0005): sichtbar parallel zum Edit-Button,
+        // d.h. hidden sobald der Edit-Modus aktiv ist. Confirm-Dialog im
+        // Click-Handler, kein eigenes Modal.
+        let btn_delete = document.createElement("button");
+        btn_delete.className   = "btn-delete";
+        btn_delete.textContent = "Delete";
+        btn_delete.addEventListener("click", on_delete_click);
+
         let btn_save = document.createElement("button");
         btn_save.className   = "btn-save";
         btn_save.textContent = "Save";
@@ -729,6 +745,7 @@
         btn_cancel.addEventListener("click", on_cancel_click);
 
         toolbar.appendChild(btn_edit);
+        toolbar.appendChild(btn_delete);
         toolbar.appendChild(btn_save);
         toolbar.appendChild(btn_cancel);
 
@@ -745,6 +762,7 @@
         }
 
         let btn_edit   = toolbar_node.querySelector(".btn-edit");
+        let btn_delete = toolbar_node.querySelector(".btn-delete");
         let btn_save   = toolbar_node.querySelector(".btn-save");
         let btn_cancel = toolbar_node.querySelector(".btn-cancel");
 
@@ -761,6 +779,16 @@
         btn_edit.hidden   = edit_is_active;
         btn_save.hidden   = ! edit_is_active;
         btn_cancel.hidden = ! edit_is_active;
+
+        // Delete-Button (M013/0005): parallel zum Edit-Button — d.h. nur
+        // sichtbar wenn der Edit-Modus NICHT aktiv ist. Defensiver Null-
+        // Check, weil aeltere Toolbar-Renders den Button noch nicht hatten.
+        let btn_delete_exists = btn_delete !== null;
+
+        if (btn_delete_exists)
+        {
+            btn_delete.hidden = edit_is_active;
+        }
     }
 
     function on_edit_click()
@@ -940,6 +968,133 @@
         }
 
         load_path(current_path, false);
+    }
+
+    // Delete-Action (M013/0005): Confirm-Dialog + POST an
+    // /file.php?action=delete_file. Bei Erfolg geht das Content-Panel auf
+    // den Platzhalter und die Seite reloaded (Tree-Refresh). Fehler
+    // landen in einer .toolbar-error ueber der Toolbar — analog
+    // on_save_click().
+    async function on_delete_click()
+    {
+        let path_is_known = typeof current_path === "string" && current_path !== "";
+
+        if (! path_is_known)
+        {
+            return;
+        }
+
+        let confirmed = window.confirm("Diese Datei wirklich loeschen?");
+
+        if (! confirmed)
+        {
+            return;
+        }
+
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let code_panel   = get_code_panel(article_element);
+        let panel_exists = code_panel !== null;
+
+        if (! panel_exists)
+        {
+            return;
+        }
+
+        let toolbar_node = code_panel.querySelector(".content-toolbar");
+
+        let existing_error = code_panel.querySelector(".toolbar-error");
+
+        if (existing_error !== null)
+        {
+            existing_error.remove();
+        }
+
+        let fetch_url = "/file.php?action=delete_file&path=" + encodeURIComponent(current_path);
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(fetch_url, { method: "POST" });
+        }
+        catch (network_failed)
+        {
+            console.warn("content_loader: delete network error", current_path, network_failed);
+            show_delete_error(code_panel, toolbar_node, "Netzwerkfehler beim Loeschen.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("content_loader: delete bad json", current_path, json_parse_failed);
+            show_delete_error(code_panel, toolbar_node, "Server-Antwort unleserlich.");
+            return;
+        }
+
+        let delete_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true;
+
+        if (! delete_ok)
+        {
+            let server_message =
+                data !== null
+                && data !== undefined
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Loeschen fehlgeschlagen.";
+
+            show_delete_error(code_panel, toolbar_node, server_message);
+            return;
+        }
+
+        // Erfolg: Content-Panel zurueck auf Platzhalter, Tree per Reload
+        // aktualisieren (der frisch geladene Tree zeigt die Datei nicht
+        // mehr). pushState ist nicht noetig, weil location.reload() ohnehin
+        // einen Full-Reload macht.
+        show_initial_placeholder();
+        window.location.reload();
+    }
+
+    function show_delete_error(code_panel, toolbar_node, message)
+    {
+        let panel_exists = code_panel !== null && code_panel !== undefined;
+
+        if (! panel_exists)
+        {
+            return;
+        }
+
+        let error_div = document.createElement("div");
+        error_div.className   = "toolbar-error";
+        error_div.textContent = message;
+
+        let toolbar_is_present = toolbar_node !== null && toolbar_node !== undefined;
+
+        if (toolbar_is_present)
+        {
+            code_panel.insertBefore(error_div, toolbar_node);
+        }
+        else
+        {
+            code_panel.appendChild(error_div);
+        }
     }
 
     async function load_path(path, do_push_state)

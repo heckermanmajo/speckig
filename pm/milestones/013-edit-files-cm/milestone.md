@@ -29,7 +29,7 @@ Status: planned
 - [x] archive/0004-new-file-action.md — Action "+ Datei" pro Tree-Ordner:
       Inline-Form (Filename), POST `?action=new_file&dir=...`, legt
       leere Datei an, Tree reloaded.
-- [ ] open/0005-delete-file-action.md — "Datei loeschen"-Button neben
+- [x] archive/0005-delete-file-action.md — "Datei loeschen"-Button neben
       dem Edit-Button mit JS-`confirm()`-Prompt; POST
       `?action=delete_file&path=...`; nur Files, keine Verzeichnisse;
       Schwarzliste greift auch hier.
