@@ -257,5 +257,6 @@ $sidebar_html .= render_bugs_block("Archive", $bugs["archive"], "pm/bugs/archive
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
+<script src="/_share/js/plan_loader.js"></script>
 </body>
 </html>

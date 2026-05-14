@@ -74,3 +74,8 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
 .plan-ticket-link:hover { text-decoration: underline; }
 .plan-ticket-done { color: #888; }
 .plan-tickets-empty { color: #aaa; font-style: italic; font-size: 0.85rem; margin: 0.15rem 0; }
+
+/* plan view (M006/0003) — Render-Bereich rechts (Status-Header + Markdown)
+ * und Active-Marker auf Sidebar-Links. */
+.plan-status-header { padding: 0.4rem 0.6rem; margin-bottom: 0.75rem; background: #f0f0f0; border-radius: 4px; font-size: 0.85rem; color: #555; }
+.plan-ticket-link.active, .plan-milestone-link.active { font-weight: 600; background: #fff7d0; }
