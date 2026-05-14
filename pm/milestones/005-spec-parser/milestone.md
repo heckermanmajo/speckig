@@ -5,7 +5,7 @@ Goal: Spec-Bloecke (`// @spec ... // @end-spec`) in PHP- und JS-Dateien werden v
 Status: planned
 
 ## Tickets
-- [ ] open/0001-parser-architecture-and-schema.md
+- [x] archive/0001-parser-architecture-and-schema.md
 - [ ] open/0002-php-parser.md
 - [ ] open/0003-js-parser.md
 - [ ] open/0004-parser-fixture-tests.md
