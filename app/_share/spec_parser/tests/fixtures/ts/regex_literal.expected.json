@@ -1,0 +1,27 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/regex_literal.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: tokenizer must ignore @spec markers inside regex literals."
+    ],
+    "symbols": [
+        {
+            "kind": "let",
+            "name": "pattern",
+            "type": "",
+            "default": "/\\/\\/ @spec[\\s\\S]*?\\/\\/ @end-spec/",
+            "spec": []
+        },
+        {
+            "kind": "function",
+            "name": "matches",
+            "signature": "function matches(input: string): boolean",
+            "decorators": [],
+            "spec": [
+                "Real spec for the only declared function in this fixture."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

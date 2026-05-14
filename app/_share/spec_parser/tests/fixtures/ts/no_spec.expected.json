@@ -1,0 +1,42 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/no_spec.ts",
+    "language": "ts",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Bare",
+            "extends": [],
+            "implements": [],
+            "decorators": [],
+            "spec": [],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "label",
+                    "type": "",
+                    "default": "\"\"",
+                    "decorators": [],
+                    "spec": []
+                },
+                {
+                    "kind": "method",
+                    "name": "greet",
+                    "signature": "greet(name: string): string",
+                    "decorators": [],
+                    "spec": [],
+                    "members": []
+                }
+            ]
+        },
+        {
+            "kind": "function",
+            "name": "plain",
+            "signature": "function plain(n: number): number",
+            "decorators": [],
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

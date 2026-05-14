@@ -1,0 +1,40 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/local_spec.ts",
+    "language": "ts",
+    "file_spec": [
+        "Fixture exercising local-spec capture inside a class method body."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Compute",
+            "extends": [],
+            "implements": [],
+            "decorators": [],
+            "spec": [
+                "Container class with a single method holding a local spec note."
+            ],
+            "members": [
+                {
+                    "kind": "method",
+                    "name": "add",
+                    "signature": "add(a: number, b: number): number",
+                    "decorators": [],
+                    "spec": [
+                        "Sums two integers, clamping negatives to zero before adding."
+                    ],
+                    "members": [
+                        {
+                            "kind": "local",
+                            "name": "local guard: refuse negative i",
+                            "spec": [
+                                "local guard: refuse negative inputs by clamping them to zero"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

@@ -1,0 +1,57 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/angular_service.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: Angular auth service stub for the demo app."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "FooService",
+            "extends": [],
+            "implements": [],
+            "decorators": [
+                {
+                    "name": "Injectable",
+                    "args_source": ""
+                }
+            ],
+            "spec": [
+                "FooService coordinates auth flows and wraps the HTTP client."
+            ],
+            "members": [
+                {
+                    "kind": "constructor",
+                    "name": "constructor",
+                    "signature": "constructor(private http: HttpClient)",
+                    "decorators": [],
+                    "spec": [
+                        "Construct the service with the injected HTTP client."
+                    ],
+                    "members": []
+                },
+                {
+                    "kind": "method",
+                    "name": "sign_in",
+                    "signature": "sign_in(username: string, password: string): Promise<string>",
+                    "decorators": [],
+                    "spec": [
+                        "Sign the user in via the backend and return the auth token."
+                    ],
+                    "members": []
+                },
+                {
+                    "kind": "method",
+                    "name": "sign_out",
+                    "signature": "sign_out(): void",
+                    "decorators": [],
+                    "spec": [
+                        "Sign the current user out, clearing the cached token."
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

@@ -1,0 +1,18 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/enum_with_spec.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: an enum whose body is opaque in V1 (members[] empty)."
+    ],
+    "symbols": [
+        {
+            "kind": "enum",
+            "name": "Color",
+            "spec": [
+                "Primary colour palette used by the demo renderer."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

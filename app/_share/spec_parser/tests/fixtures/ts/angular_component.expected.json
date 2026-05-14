@@ -1,0 +1,73 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/angular_component.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: app entry component for the demo Angular app."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "AppComponent",
+            "extends": [],
+            "implements": [],
+            "decorators": [
+                {
+                    "name": "Component",
+                    "args_source": "{ selector: \"app-root\", templateUrl: \"./app.component.html\", }"
+                }
+            ],
+            "spec": [
+                "AppComponent mounts at /app-root and renders the active user."
+            ],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "user",
+                    "type": "User | null",
+                    "default": "null",
+                    "decorators": [],
+                    "spec": [
+                        "current user, null when logged out"
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "next_url",
+                    "type": "string",
+                    "default": "\"\"",
+                    "decorators": [],
+                    "spec": [
+                        "remembered route the user clicked before login"
+                    ]
+                },
+                {
+                    "kind": "method",
+                    "name": "login",
+                    "signature": "async login(username: string, password: string): Promise<void>",
+                    "decorators": [
+                        {
+                            "name": "LogCall",
+                            "args_source": ""
+                        }
+                    ],
+                    "spec": [
+                        "Logs the user in via the auth service.",
+                        "throws AuthError on bad credentials"
+                    ],
+                    "members": []
+                },
+                {
+                    "kind": "method",
+                    "name": "logout",
+                    "signature": "logout(): void",
+                    "decorators": [],
+                    "spec": [
+                        "Sign the active user out and clear the remembered route."
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

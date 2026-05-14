@@ -1,0 +1,19 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/interface_with_spec.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: a User interface; body members are not decomposed in V1."
+    ],
+    "symbols": [
+        {
+            "kind": "interface",
+            "name": "User",
+            "extends": [],
+            "spec": [
+                "User row contract: numeric id and display name."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

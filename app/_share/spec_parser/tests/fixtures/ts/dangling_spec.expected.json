@@ -1,0 +1,22 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/dangling_spec.ts",
+    "language": "ts",
+    "file_spec": [
+        "Fixture exercising the dangling-spec warning when a spec block trails the last symbol."
+    ],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "ok",
+            "signature": "function ok(): number",
+            "decorators": [],
+            "spec": [
+                "Returns the constant value 1."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": [
+        "dangling spec at line 13"
+    ]
+}

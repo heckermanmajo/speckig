@@ -1,0 +1,20 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/ts/function_with_generics.ts",
+    "language": "ts",
+    "file_spec": [
+        "File-level spec: a generic mapping helper, generics carried as source string in the signature."
+    ],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "map",
+            "signature": "function map<T, U>(xs: T[], fn:(t: T) => U): U[]",
+            "decorators": [],
+            "spec": [
+                "Map every element of xs through fn and return the resulting array."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}
