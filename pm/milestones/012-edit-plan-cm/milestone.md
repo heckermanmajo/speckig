@@ -13,7 +13,7 @@ und "neues Ticket in diesem Milestone".
 Status: planned
 
 ## Tickets
-- [ ] open/0001-cm-vendor.md — CodeMirror 5 vendoren
+- [x] archive/0001-cm-vendor.md — CodeMirror 5 vendoren
       (`app/_share/vendor/js/codemirror.min.js`, dazu `markdown`-Mode
       und `codemirror.css`), Originalheader behalten, Decision-File
       `pm/decisions/0007-editor-vendoring.md`.

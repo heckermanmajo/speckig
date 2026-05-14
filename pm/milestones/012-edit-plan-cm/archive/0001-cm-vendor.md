@@ -36,3 +36,15 @@ folgt in spaeteren Milestones (M013/M014).
 - Weitere Modes (PHP, JS, …) — kommen in M013 dazu.
 - Theme-Files — Default-Theme reicht.
 - IIFE-Wrapper (kommt in 0003).
+
+## Done
+- Neue Files:
+  - `app/_share/vendor/js/codemirror.min.js` (173998 B, jsDelivr-Terser-Header + Upstream-IIFE unveraendert).
+  - `app/_share/vendor/js/codemirror-modes/markdown.js` (31325 B, MIT-Originalheader `// CodeMirror, copyright (c) by Marijn Haverbeke and others`).
+  - `app/_share/vendor/css/codemirror.css` (8720 B, Upstream-Original ohne extra Header — so liefert CodeMirror 5 das CSS aus).
+  - `pm/decisions/0007-editor-vendoring.md` (5 Beschluesse, je 1 Satz).
+- 1:1 von `https://cdn.jsdelivr.net/npm/codemirror@5.65.21/` per `curl -sSL` geladen, keine Modifikation.
+- Smoketest mit `php -S 127.0.0.1:8086 -t app`: alle drei Pfade liefern `HTTP/1.1 200 OK` mit `Content-Type: application/javascript` bzw. `text/css; charset=UTF-8`.
+- Streu-File-Check sauber: nur kanonisches `./app.sqlite`.
+
+See: pm/decisions/0007-editor-vendoring.md
