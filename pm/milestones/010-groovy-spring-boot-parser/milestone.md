@@ -5,7 +5,7 @@ Goal: `// @spec ... // @end-spec`-Bloecke in Groovy-Quellcode (Endung `.groovy`)
 Status: planned
 
 ## Tickets
-- [ ] open/0001-groovy-architecture-and-annotations.md
+- [x] archive/0001-groovy-architecture-and-annotations.md
 - [ ] open/0002-groovy-parser.md
 - [ ] open/0003-groovy-fixture-tests.md
 - [ ] open/0004-groovy-ui-dispatch.md

@@ -59,6 +59,7 @@ Die Endung des Eingabe-Pfads bestimmt den Sprach-Parser:
 | `.nim` | `nim_parser::parse()`  | PHP-seitiger Tokenizer (M007/0002)  |
 | `.lua` | `lua_parser::parse()`  | PHP-seitiger Tokenizer (M008/0002)  |
 | `.ts`  | `ts_parser::parse()`   | PHP-seitiger Tokenizer (M009/0002)  |
+| `.groovy` | `groovy_parser::parse()` | PHP-seitiger Tokenizer (M010/0002) |
 | sonst  | abgelehnt              | `{"error": "unsupported language"}` |
 
 Pfade unter `app/_share/vendor/` werden **vor** dem Sprach-Dispatch
@@ -904,6 +905,370 @@ Anmerkungen zum Beispiel:
   (kein Decorator vorhanden). Renderer behandeln fehlendes Feld und
   leeres Array gleich.
 
+## Groovy
+
+Groovy ist die sechste unterstuetzte Sprache (Milestone M010). Der Parser
+ist ein Stub in M010/0001 (dieses Ticket); M010/0002 fuellt ihn.
+Zielpublikum sind handgeschriebene Groovy-Quellen, insbesondere
+Spring-Boot-Komponenten (`@RestController`, `@Service`, `@Repository`,
+`@Autowired`, `@RequestMapping`, `@GetMapping`, ...).
+
+### Marker-Konvention
+
+Spec-Bloecke in Groovy werden mit **`// @spec`** ... **`// @end-spec`**
+markiert — exakt wie in JS/TS. Groovy erbt JavaScripts/Javas Kommentar-
+Syntax (`//` Zeilen-Kommentar, `/* ... */` Block-Kommentar,
+`/** ... */` Groovydoc) eins-zu-eins.
+
+Begruendung:
+
+- Eine separate Groovy-Markervariante waere unnoetige Verdopplung gegenueber
+  JS/TS. Wer in einer Groovy-Codebase `// @spec` schreibt, liest dasselbe
+  wie in einer TS-Komponente.
+- Groovydoc-Bloecke `/** ... */` bleiben **unangetastet** und werden NICHT
+  als Spec interpretiert. Wer in einer Groovy-Codebase Groovydoc fuehrt,
+  kann Spec-Bloecke und Groovydoc parallel verwenden — das eine ersetzt
+  das andere nicht.
+
+Beispiel (Spring-Boot-RestController):
+
+```groovy
+// @spec
+// REST controller for the foo resource. Mounts at /api.
+// @end-spec
+@RestController
+@RequestMapping("/api")
+class FooController {
+
+    // @spec
+    // Repository handle, injected by Spring at construction time.
+    // never null after Spring DI is complete
+    // @end-spec
+    @Autowired
+    FooRepository repo
+
+    // @spec
+    // Returns the foo with the given id.
+    // throws NotFoundException when no row matches
+    // @end-spec
+    @GetMapping("/foo/{id}")
+    Foo getFoo(@PathVariable Long id) {
+        return repo.findById(id).orElseThrow{ new NotFoundException() }
+    }
+}
+```
+
+### Granularitaet
+
+Spec-Bloecke koennen vor folgenden Symbolen stehen:
+
+- **Datei-Header** — erster Block der Datei, vor jedem Top-Level-Symbol.
+- **`class`** — Klassen-Deklarationen, mit oder ohne Annotations.
+- **`interface`** — Interface-Deklarationen.
+- **`enum`** — Enum-Deklarationen.
+- **`trait`** — Groovy-Traits (vergleichbar PHP-Traits).
+- **Klassen-Member** — Felder, Methoden, Konstruktoren, statische Methoden,
+  Properties (Felder ohne expliziten Modifier sind Groovy-Properties mit
+  auto-generiertem Getter/Setter — wir erkennen sie als `kind: "property"`).
+- **Top-Level Skript-Variablen** — Groovy erlaubt Skripte ohne Klassen-
+  Wrapper; `def x = ...` / `Type x = ...` auf Top-Level.
+- **Top-Level Skript-Methoden** — Methoden in Skripten ohne Klassen-Wrapper.
+- **Annotation-tragende Symbole** — `@RestController`, `@Service`,
+  `@Repository`, `@Autowired`, `@RequestMapping(...)`, `@GetMapping(...)`,
+  custom (`@Transactional`, ...). Spec-Block + 0..n Annotations + Symbol
+  heisst: Spec gehoert zum Symbol, NICHT zur Annotation. Die Annotations
+  werden als Strukturinfo am Symbol unter `annotations[]` mitgefuehrt
+  (siehe Schema-Erweiterung unten).
+- **Lokale Spec-Bloecke** innerhalb eines Methoden-/Skript-Body — als
+  `members[]`-Eintrag mit `kind: "local"`.
+
+### `kind`-Werte fuer Groovy-Symbole
+
+| `kind`           | Symbol-Typ                                                       |
+|------------------|-------------------------------------------------------------------|
+| `class`          | `class Name { ... }` (mit oder ohne Annotation)                   |
+| `interface`      | `interface Name { ... }`                                          |
+| `enum`           | `enum Name { ... }`                                               |
+| `trait`          | `trait Name { ... }` (Groovy-Trait)                               |
+| `method`         | Klassen-Methode `Type name(...) { ... }` (auch `static`)          |
+| `constructor`    | Klassen-Konstruktor `ClassName(...) { ... }`                      |
+| `field`          | Klassen-Feld mit explizitem Modifier (`private`/`protected`/`public`) |
+| `property`       | Klassen-Feld ohne expliziten Modifier (Groovy-Property mit auto-Getter/Setter) |
+| `script-var`     | Top-Level `def name = ...` / `Type name = ...` in einem Groovy-Skript |
+| `script-method`  | Top-Level Methode in einem Groovy-Skript ohne Klassen-Wrapper     |
+| `local`          | Spec-Block innerhalb eines Methoden-/Skript-Body                  |
+
+Die Unterscheidung `field` (mit Modifier) vs. `property` (ohne Modifier)
+ist semantisch wichtig in Groovy: `String name` auf Klassen-Ebene ist
+eine Property — der Compiler generiert `getName()` und `setName(String)`.
+`private String name` ist ein Feld ohne Auto-Accessoren. Ein Renderer kann
+diese Information nutzen, um Properties als zugaengliche API zu zeigen,
+Felder als interne Implementierung.
+
+`script-var` und `script-method` decken das Groovy-Skript-Modell ab
+(Quelldateien ohne `class`-Wrapper, die als Skript-Body laufen).
+Konstruktoren bekommen ihren eigenen `kind`-String, damit Renderer sie
+optisch von normalen Methoden trennen koennen.
+
+### Annotation-Behandlung (Schema-Erweiterung)
+
+Symbol-Level-Annotations (`@RestController`, `@RequestMapping("/api")`,
+`@Autowired`, `@GetMapping("/foo")`, ...) werden als Strukturinfo am
+Symbol mitgefuehrt:
+
+```json
+{
+  "kind": "class",
+  "name": "FooController",
+  "annotations": [
+    {"name": "RestController", "args_source": null},
+    {"name": "RequestMapping", "args_source": "\"/api\""}
+  ],
+  "spec": [...],
+  "members": [...]
+}
+```
+
+Form: `annotations` ist ein Array von Objekten mit:
+
+- `name` (string) — der Annotation-Identifier (der Identifier nach `@`).
+  Bei qualifizierten Namen wie `@org.springframework.stereotype.Service`
+  wird der volle Pfad uebernommen: `name: "org.springframework.stereotype.Service"`.
+- `args_source` (string|null) — der Source-String der Annotation-Args
+  zwischen den Klammern (ohne Klammern selbst). Drei Faelle:
+  - **`null`** wenn die Annotation ohne Klammern steht: `@RestController` ->
+    `{name: "RestController", args_source: null}`.
+  - **`""`** wenn die Klammern leer sind: `@Service()` ->
+    `{name: "Service", args_source: ""}`.
+  - **`"<inhalt>"`** wenn Klammern mit Inhalt: `@RequestMapping("/api")`
+    -> `{name: "RequestMapping", args_source: "\"/api\""}`.
+
+`args_source`-Semantik ist absichtlich identisch zur TS-`decorators[]`-
+Form (M009/0001). Begruendung fuer die `null` vs. `""`-Unterscheidung:
+in Java/Groovy sind `@Foo` und `@Foo()` syntaktisch beide gueltig (Java
+lockert die Klammer-Pflicht, wenn alle Annotation-Members Defaults
+haben), und ein Renderer/Konsument kann die zwei Formen unterscheiden,
+falls noetig — etwa um Source-Treue beim Re-Rendern zu wahren. Wir
+mischen das nicht schon im Parser.
+
+Der Inhalt von `args_source` wird **nicht** semantisch geparst — kein
+Java-Parse, kein String-Decode. Es ist der rohe Source-String wie er im
+Code steht (Whitespace zu einzelnen Spaces komprimiert, analog zu
+`signature`/`default` bei den anderen Sprachen). Wer den Pfad aus einem
+`@RequestMapping("/api")` braucht, parst `args_source` selbst — eine
+Mini-Heuristik wie "string nach erstem Komma" oder "trim Quotes" reicht
+typischerweise.
+
+**Warum `annotations[]` und nicht `decorators[]`?** Beide tragen
+strukturell dieselbe Form. Wir benennen das Feld trotzdem
+sprachgetreu: in Java/Groovy heisst das Sprach-Konstrukt "Annotation",
+in TypeScript "Decorator". Eine sprachfremde Benennung wuerde Renderer
+und Konsumenten zwingen, die Sprache umzudenken. Auf der Renderer-Seite
+ist die Generalisierung trivial (M009/0004 hat bereits den Fallback
+`symbol.decorators || symbol.annotations`), aber semantisch bleibt der
+Schema-Konsument bei der Sprache.
+
+**Schema-Erweiterung am Symbol**: `annotations` ist ein **optionales**
+Feld (Default `[]`). Andere Sprachen (PHP, JS, Nim, Lua, TS) setzen das
+Feld nicht. Renderer generalisieren ueber `decorators[] || annotations[]`.
+
+V1 erkennt nur **Symbol-Level**-Annotations (vor Klassen, Methoden,
+Feldern, Konstruktoren, Properties). **Parameter-Annotations**
+(`@PathVariable Long id`, `@RequestBody Foo body` innerhalb einer
+Argumentliste) werden NICHT extrahiert — sie laufen tokenmaessig durch
+und landen als Bestandteil des Signatur-Source-Strings. Falls Bedarf
+entsteht, ist das eine eigene spaetere Schema-Erweiterung.
+
+### "Direkt darauffolgend" — praezise
+
+Ein Spec-Block bezieht sich auf das **naechste deklarations-tragende
+Symbol** nach `// @end-spec`. Dazwischen stehen darf:
+
+- Whitespace (Spaces, Tabs, Zeilenumbrueche) — beliebig viel.
+- Block-Kommentare `/* ... */`.
+- Groovydoc-Bloecke `/** ... */`.
+- Andere `// ...`-Zeilen-Kommentare, die **nicht** mit `// @spec`
+  beginnen (regulaere Code-Kommentare).
+- **Annotations** (`@RestController`, `@RequestMapping(...)`, custom).
+  Beliebig viele in Folge — Spec-Block + Annotation-Liste + Symbol heisst:
+  Spec gehoert zum Symbol, Annotations gehen als `annotations[]`-Array
+  ans Symbol.
+- Modifier-Keywords vor der Symbol-Deklaration: `public`, `protected`,
+  `private`, `static`, `final`, `abstract`, `def`. Sie zaehlen als Teil
+  der folgenden Deklaration.
+
+**Nicht** erlaubt zwischen Spec-Block und Symbol:
+
+- Ein anderes Symbol (Klasse, Methode, Feld, Konstruktor, Skript-Var,
+  Skript-Methode).
+- Ein anderer `// @spec`-Block ohne dazwischenliegendes Symbol — der
+  erste Block ist dann "dangling".
+
+Wenn nach einem Spec-Block kein Symbol mehr folgt (Datei-Ende, oder
+nur weitere Spec-Bloecke):
+
+- Der Block wird **verworfen**.
+- `warnings[]` bekommt einen Eintrag der Form
+  `"dangling spec at line N"`.
+
+### Parser-Strategie
+
+PHP-seitiger State-Machine-Tokenizer (analog M005/0001 fuer JS,
+M007/0001 fuer Nim, M008/0001 fuer Lua, M009/0001 fuer TS). Keine
+externen Libs, kein Subprozess (insbesondere kein `groovyc` /
+Groovy-AST), **kein Regex** auf Quelltext (Decision 0006).
+
+Begruendung:
+
+- Konsistenz mit der bestehenden Sprach-Parser-Architektur — alle
+  Parser laufen im selben PHP-Prozess, kein neuer Laufzeit-
+  Abhaengigkeit. Decision 0004 ("kein npm, kein Bundler, kein
+  TypeScript") gilt symmetrisch fuer Java/Groovy: keine JVM-
+  Abhaengigkeit fuer den Speckig-Server.
+- Der noetige Subset fuer Spec-Extraktion ist klein: Token-
+  Klassifikation (Comment vs. String vs. GString vs. Triple-String),
+  Annotation-Praefix `@<ident>(...)`, Top-Level- und Klassen-Member-
+  Erkennung mit `class`/`interface`/`enum`/`trait`/`def`/Typ-Praefix.
+  Type-Annotationen werden tokenmaessig geschluckt, nicht semantisch
+  verstanden.
+
+Subset, den V1 NICHT semantisch versteht:
+
+- **Closures** `{ -> ... }` — werden als Tokens durchgelaufen; der
+  Closure-Body wird nicht analysiert. Closures als Methoden-Argument-
+  Defaults (`def foo(Closure cb = { -> }) {...}`) wandern als Source-
+  String in die Signatur.
+- **GString-Interpolation** `"text $var ${expr}"` — der Tokenizer muss
+  die `$var`- und `${...}`-Stellen korrekt durchlaufen, ohne dass
+  `// @spec` im Interpolations-Body als Spec gewertet wird.
+- **Operator-Overloading** — Groovy erlaubt das, der Parser interessiert
+  sich aber nur fuer Symbol-Erkennung, nicht fuer Operator-Semantik.
+- **Annotation-Args** — bleiben als Source-String in `args_source`
+  liegen, kein Parse des Args-Inhalts.
+- **Parameter-Annotations** — gehen tokenmaessig in die Signatur, werden
+  nicht als eigene `annotations[]`-Liste pro Parameter gesammelt.
+
+### Edge-Cases die NICHT als Spec erkannt werden duerfen
+
+Der Tokenizer muss diese Faelle korrekt klassifizieren, sonst werden
+String- oder Kommentar-Inhalte faelschlich als Spec gelesen:
+
+- `// @spec`-Text in einzeiligen Strings `'...'` und `"..."`.
+- `// @spec`-Text in Triple-Strings `'''...'''` und `"""..."""`.
+- `// @spec`-Text in GStrings `"text $var ${expr}"` mit
+  `${...}`-Interpolation. Der Tokenizer muss die geschweiften
+  Interpolations-Klammern korrekt matchen, auch bei verschachtelten
+  Strings im Interpolations-Body (`${"x"}`, `${foo("bar")}`).
+- `// @spec`-Text in Block-Kommentaren `/* ... */`.
+- `// @spec`-Text in Groovydoc-Bloecken `/** ... */`. Groovydoc-Inhalt
+  wird vom Parser ignoriert; nur One-Line-Kommentare `//` werden als
+  Spec-Marker akzeptiert.
+
+Der Tokenizer klassifiziert diese Token-Klassen primaer; `// @spec` ist
+**nur** dann ein Marker, wenn das Token vom Tokenizer als
+"Zeilen-Kommentar" (`comment_line`) eingestuft wurde — nicht innerhalb
+eines String-, GString-, Triple-String- oder Block-Kommentar-Zustands.
+
+### Beispiel-Output (Ziel-Output fuer M010/0002)
+
+Groovy-Quelle (Spring-Boot-RestController):
+
+```groovy
+// @spec
+// REST controller for the foo resource. Mounts at /api.
+// @end-spec
+@RestController
+@RequestMapping("/api")
+class FooController {
+
+    // @spec
+    // Repository handle, injected by Spring at construction time.
+    // never null after Spring DI is complete
+    // @end-spec
+    @Autowired
+    FooRepository repo
+
+    // @spec
+    // Returns the foo with the given id.
+    // throws NotFoundException when no row matches
+    // @end-spec
+    @GetMapping("/foo/{id}")
+    Foo getFoo(@PathVariable Long id) {
+        return repo.findById(id).orElseThrow{ new NotFoundException() }
+    }
+}
+```
+
+Erwartetes JSON (handgeschrieben):
+
+```json
+{
+  "file": "FooController.groovy",
+  "language": "groovy",
+  "file_spec": [],
+  "symbols": [
+    {
+      "kind": "class",
+      "name": "FooController",
+      "extends": [],
+      "implements": [],
+      "annotations": [
+        {"name": "RestController", "args_source": null},
+        {"name": "RequestMapping", "args_source": "\"/api\""}
+      ],
+      "spec": [
+        "REST controller for the foo resource. Mounts at /api."
+      ],
+      "members": [
+        {
+          "kind": "property",
+          "name": "repo",
+          "type": "FooRepository",
+          "annotations": [
+            {"name": "Autowired", "args_source": null}
+          ],
+          "spec": [
+            "Repository handle, injected by Spring at construction time.",
+            "never null after Spring DI is complete"
+          ]
+        },
+        {
+          "kind": "method",
+          "name": "getFoo",
+          "signature": "Foo getFoo(@PathVariable Long id)",
+          "annotations": [
+            {"name": "GetMapping", "args_source": "\"/foo/{id}\""}
+          ],
+          "spec": [
+            "Returns the foo with the given id.",
+            "throws NotFoundException when no row matches"
+          ],
+          "members": []
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+```
+
+Anmerkungen zum Beispiel:
+
+- Die Datei traegt keinen Datei-Header-Spec-Block — der erste
+  `// @spec`-Block steht direkt vor `@RestController`/`class FooController`
+  und gehoert dadurch zur Klasse.
+- `@RestController` ohne Klammern -> `args_source: null`.
+  `@RequestMapping("/api")` -> `args_source: "\"/api\""` (die Quotes
+  sind Teil des Source-Strings, weil sie im Source stehen). Ein
+  hypothetisches `@Service()` ohne Inhalt haette `args_source: ""`.
+- `@PathVariable` an einem Methoden-Parameter wird NICHT als Symbol-
+  Annotation erkannt — Parameter-Annotations laufen tokenmaessig in
+  die Signatur (`signature: "Foo getFoo(@PathVariable Long id)"`).
+- `repo` ohne expliziten Modifier ist eine Groovy-Property
+  (`kind: "property"`), nicht ein Feld — der Compiler generiert
+  Getter/Setter automatisch. Mit `private FooRepository repo` waere
+  es `kind: "field"`.
+
 ## Ausgabe-Schema
 
 JSON-Objekt mit fester Form. Erfolgs-Pfad:
@@ -953,7 +1318,8 @@ Fehler-Pfad (Vendor-Blacklist, unsupported language, file not found):
 | `implements` | string[] | `class`                | Implementierte Interfaces; leer wenn keine. |
 | `spec`       | string[] | immer                  | Spec-Zeilen des Symbols, ohne `// `-Praefix, ohne `@spec`/`@end-spec`. Leer wenn das Symbol keine Spec hat. |
 | `members`    | object[] | `class`, `interface`, `trait`, `method` | Properties / Konstanten / Methoden eines Containers; bei `method` lokale Spec-Bloecke (`kind: "local"`). Leer wenn keine. |
-| `decorators` | object[] | optional, TS-only      | Decorator-Liste eines Symbols. Form `[{name, args_source}]`. Default `[]`. Wird in V1 nur vom TS-Parser gesetzt; PHP/JS/Nim/Lua emittieren das Feld nicht. Renderer ignoriert das Feld bei Sprachen, die es nicht setzen. Details siehe Sektion `## TypeScript`. |
+| `decorators` | object[] | optional, TS-only      | Decorator-Liste eines Symbols. Form `[{name, args_source}]`. Default `[]`. Wird in V1 nur vom TS-Parser gesetzt; PHP/JS/Nim/Lua/Groovy emittieren das Feld nicht. Renderer ignoriert das Feld bei Sprachen, die es nicht setzen. Details siehe Sektion `## TypeScript`. |
+| `annotations` | object[] | optional, Groovy-only | Annotation-Liste eines Symbols. Form `[{name, args_source}]` — strukturell identisch zu `decorators[]`, aber semantisch andere Sprach-Familie (Java-Annotations vs. TS-Decorators). Default `[]`. Wird in V1 nur vom Groovy-Parser gesetzt; PHP/JS/Nim/Lua/TS emittieren das Feld nicht. Renderer behandeln `decorators` und `annotations` gleich (M009/0004 hat `decorators \|\| annotations`-Fallback). Details siehe Sektion `## Groovy`. |
 
 ### "Direkt darauffolgend" — praezise
 
@@ -1138,7 +1504,8 @@ leere Felder). Die Bloecke unten sind die Vorlage fuer M005/0002.
 | `nim_parser.php`   | Sprach-Parser fuer `.nim`. Stub in M007/0001, gefuellt in M007/0002. |
 | `lua_parser.php`   | Sprach-Parser fuer `.lua` (inkl. Love2D). Stub in M008/0001, gefuellt in M008/0002. |
 | `ts_parser.php`    | Sprach-Parser fuer `.ts` (inkl. Angular). Stub in M009/0001, gefuellt in M009/0002. |
-| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie, Lua-Strategie, TS-Strategie. |
+| `groovy_parser.php` | Sprach-Parser fuer `.groovy` (inkl. Spring Boot). Stub in M010/0001, gefuellt in M010/0002. |
+| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie, Lua-Strategie, TS-Strategie, Groovy-Strategie. |
 
 Spaeter (M005/0004) kommt `tests/run.php` mit Fixtures dazu;
 M005/0005 verdrahtet `spec_parser::parse()` in `app/file.php`.
