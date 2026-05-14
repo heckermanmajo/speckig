@@ -13,7 +13,7 @@ unangetastet. Plus: "+ Datei"-Aktion im aktuellen Verzeichnis,
 Status: planned
 
 ## Tickets
-- [ ] open/0001-save-file-endpoint.md — `app/file.php` um POST
+- [x] archive/0001-save-file-endpoint.md — `app/file.php` um POST
       `?action=save` erweitern; SPECKIG_ROOT-Scope; Schreib atomar via
       tmp+rename; Schwarzliste fuer `app/_share/vendor/`, `.git/`,
       `app/_share/spec_parser/`; Binary-Guard via Byte-Check; 1 MB
