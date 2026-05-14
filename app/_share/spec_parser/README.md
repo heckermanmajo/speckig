@@ -58,6 +58,7 @@ Die Endung des Eingabe-Pfads bestimmt den Sprach-Parser:
 | `.js`  | `js_parser::parse()`   | PHP-seitiger Tokenizer (M005/0003)  |
 | `.nim` | `nim_parser::parse()`  | PHP-seitiger Tokenizer (M007/0002)  |
 | `.lua` | `lua_parser::parse()`  | PHP-seitiger Tokenizer (M008/0002)  |
+| `.ts`  | `ts_parser::parse()`   | PHP-seitiger Tokenizer (M009/0002)  |
 | sonst  | abgelehnt              | `{"error": "unsupported language"}` |
 
 Pfade unter `app/_share/vendor/` werden **vor** dem Sprach-Dispatch
@@ -557,6 +558,352 @@ Die `local player = { ... }`-Zeile traegt keine Spec und erscheint
 darum nicht in `symbols` — Symbole ohne `@spec` werden nur dann
 gesammelt, wenn sie ein Container fuer andere Spec-tragende Member sind.
 
+## TypeScript
+
+TypeScript ist die fuenfte unterstuetzte Sprache (Milestone M009). Der
+Parser ist ein Stub in M009/0001 (dieses Ticket); M009/0002 fuellt ihn.
+Zielpublikum sind handgeschriebene TS-Quellen, insbesondere Angular-
+Komponenten (`@Component`, `@Injectable`, `@Directive`, ...).
+
+### Marker-Konvention
+
+Spec-Bloecke in TypeScript werden mit **`// @spec`** ... **`// @end-spec`**
+markiert — exakt wie in JavaScript. TS ist ein Superset von JS, der
+Marker bleibt der gleiche.
+
+Begruendung:
+
+- TypeScript erbt JavaScripts Kommentar-Syntax (`//` Zeilen-Kommentar,
+  `/* ... */` Block-Kommentar, `/** ... */` JSDoc) eins-zu-eins. Eine
+  separate TS-Markervariante waere unnoetige Verdopplung.
+- JSDoc-Bloecke `/** ... */` bleiben **unangetastet** und werden NICHT
+  als Spec interpretiert. Wer in einer TS-Codebase JSDoc-Doku hat, kann
+  Spec-Bloecke und JSDoc parallel fuehren — das eine ersetzt das andere
+  nicht.
+
+Beispiel (Angular-Komponente):
+
+```ts
+// @spec
+// App entry component, mounts at /app-root.
+// @end-spec
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+})
+export class AppComponent {
+  // @spec current user, null when logged out
+  // @end-spec
+  user: User | null = null;
+
+  // @spec
+  // Logs the user in via the auth service.
+  // throws AuthError on bad credentials
+  // @end-spec
+  @LogCall()
+  async login(username: string, password: string): Promise<void> {
+    ...
+  }
+}
+```
+
+### Granularitaet
+
+Spec-Bloecke koennen vor folgenden Symbolen stehen:
+
+- **Datei-Header** — erster Block der Datei, vor jedem Top-Level-Symbol.
+- **`class`** — Klassen-Deklarationen, mit oder ohne Decorators.
+- **`interface`** — Interface-Deklarationen.
+- **`enum`** — Enum-Deklarationen.
+- **`type`-Aliase** — `type Foo = ...`.
+- **Klassen-Member** — Properties, Methoden, Konstruktor (`constructor`),
+  Getter (`get`), Setter (`set`).
+- **Top-Level `function`** — exportierte oder lokale Top-Level-Funktionen.
+- **Top-Level `const` / `let` / `var`** — Konstanten / Variablen.
+- **Decorator-tragende Symbole** — `@Component`, `@Injectable`,
+  `@Directive`, custom (`@LogCall`, ...). Spec-Block + 0..n Decorators
+  + Symbol heisst: Spec gehoert zum Symbol, NICHT zum Decorator. Die
+  Decorators werden als Strukturinfo am Symbol unter `decorators[]`
+  mitgefuehrt (siehe Schema-Erweiterung unten).
+- **Lokale Spec-Bloecke** innerhalb eines Funktions-/Methoden-Body —
+  als `members[]`-Eintrag mit `kind: "local"`.
+
+### `kind`-Werte fuer TS-Symbole
+
+| `kind`         | Symbol-Typ                                                       |
+|----------------|-------------------------------------------------------------------|
+| `class`        | `class Name { ... }` (mit oder ohne `@Decorator`)                 |
+| `interface`    | `interface Name { ... }`                                          |
+| `enum`         | `enum Name { ... }` (auch `const enum Name { ... }`)              |
+| `type`         | `type Name = ...` (Aliases, Mapped Types, Union/Intersection)     |
+| `function`     | Top-Level `function name(...) { ... }`                            |
+| `method`       | Klassen-Methode `name(...) { ... }` (auch `async`/`static`)       |
+| `constructor`  | Klassen-Konstruktor `constructor(...) { ... }`                    |
+| `property`     | Klassen-Property `name: Type [= default]`                         |
+| `getter`       | Klassen-Getter `get name(): Type { ... }`                         |
+| `setter`       | Klassen-Setter `set name(v: Type) { ... }`                        |
+| `const`        | Top-Level `const NAME = ...`                                      |
+| `let`          | Top-Level `let NAME = ...`                                        |
+| `var`          | Top-Level `var NAME = ...`                                        |
+| `local`        | Spec-Block innerhalb eines Funktions-/Methoden-Body               |
+
+Im Vergleich zur JS-Liste (`class`, `function`, `method`, `getter`,
+`setter`, `property`, `const`, `let`, `var`, `local`) kommen
+`interface`, `enum`, `type` und `constructor` dazu — die TS-spezifischen
+Deklarations-Formen bekommen jeweils ihren eigenen `kind`-String, kein
+Mapping in JS-Vokabular. `constructor` wird gegenueber JS ausgegliedert,
+damit Renderer Konstruktoren von normalen Methoden unterscheiden koennen
+(in TS ist das semantisch wichtiger, weil der Konstruktor Parameter-
+Properties via `public`/`private`-Modifier deklarieren kann).
+
+### Decorator-Behandlung (Schema-Erweiterung)
+
+Symbol-Level-Decorators (`@Component(...)`, `@Injectable()`, `@LogCall`,
+...) werden als Strukturinfo am Symbol mitgefuehrt:
+
+```json
+{
+  "kind": "class",
+  "name": "AppComponent",
+  "decorators": [
+    {"name": "Component", "args_source": "{selector: 'app-root', templateUrl: './app.component.html'}"}
+  ],
+  "spec": [...],
+  "members": [...]
+}
+```
+
+Form: `decorators` ist ein Array von Objekten mit:
+
+- `name` (string) — der Decorator-Identifier (der Identifier nach `@`).
+  Bei qualifizierten Namen wie `@Foo.Bar` wird der volle Pfad
+  uebernommen: `name: "Foo.Bar"`.
+- `args_source` (string|null) — der Source-String der Decorator-Args
+  zwischen den Klammern (ohne Klammern selbst). Drei Faelle:
+  - **`null`** wenn der Decorator ohne Klammern steht: `@Override` ->
+    `{name: "Override", args_source: null}`.
+  - **`""`** wenn die Klammern leer sind: `@LogCall()` ->
+    `{name: "LogCall", args_source: ""}`.
+  - **`"<inhalt>"`** wenn Klammern mit Inhalt: `@Component({selector:'app-root'})`
+    -> `{name: "Component", args_source: "{selector:'app-root'}"}`.
+
+Begruendung fuer die `null` vs. `""`-Unterscheidung: ein Renderer kann
+zwischen "Decorator ohne Aufruf" (`@Override`) und "Decorator mit leerem
+Aufruf" (`@LogCall()`) sinnvoll unterscheiden — das sind in TypeScript
+nicht synonyme Formen (die zweite wertet einen Decorator-Factory-Aufruf
+aus, die erste verwendet die Funktion direkt). Wir geben dem Konsumenten
+beide Informationen, statt sie schon im Parser zu vermischen.
+
+Der Inhalt von `args_source` wird **nicht** semantisch geparst — kein
+JSON-Decode, kein TS-Parse. Es ist der rohe Source-String wie er im
+Code steht (Whitespace zu einzelnen Spaces komprimiert, analog zu
+`signature`/`default` bei den anderen Sprachen). Wer den Selector aus
+einem `@Component`-Aufruf braucht, parst `args_source` selbst —
+typischerweise reicht eine Mini-Heuristik wie "string nach
+`selector:`".
+
+**Schema-Erweiterung am Symbol**: `decorators` ist ein **optionales**
+Feld (Default `[]`). Andere Sprachen (PHP, JS, Nim, Lua) setzen das
+Feld nicht. Renderer (M009/0004 und ggf. M010 fuer ein
+`annotations[]`-Aequivalent) generalisieren ueber das Feld.
+
+V1 erkennt nur **Symbol-Level**-Decorators (vor Klassen, Methoden,
+Properties, Konstruktoren, Settern, Gettern). **Parameter-Decorators**
+(`@Inject(TOKEN) param: T` innerhalb einer Argumentliste) werden NICHT
+extrahiert — sie laufen tokenmaessig durch und landen als Bestandteil
+des Signatur-Source-Strings. Falls Bedarf entsteht, ist das eine eigene
+spaetere Schema-Erweiterung.
+
+### "Direkt darauffolgend" — praezise
+
+Ein Spec-Block bezieht sich auf das **naechste deklarations-tragende
+Symbol** nach `// @end-spec`. Dazwischen stehen darf:
+
+- Whitespace (Spaces, Tabs, Zeilenumbrueche) — beliebig viel.
+- Block-Kommentare `/* ... */`.
+- JSDoc-Bloecke `/** ... */`.
+- Andere `// ...`-Zeilen-Kommentare, die **nicht** mit `// @spec`
+  beginnen (regulaere Code-Kommentare).
+- **Decorators** (`@Component(...)`, `@Injectable()`, custom). Beliebig
+  viele in Folge — Spec-Block + Decorator-Liste + Symbol heisst:
+  Spec gehoert zum Symbol, Decorators gehen als `decorators[]`-Array
+  ans Symbol.
+- Modifier-Keywords vor der Symbol-Deklaration: `export`, `default`,
+  `async`, `static`, `readonly`, `public`, `protected`, `private`,
+  `abstract`, `declare`, `override`. Sie zaehlen als Teil der
+  folgenden Deklaration.
+
+**Nicht** erlaubt zwischen Spec-Block und Symbol:
+
+- Ein anderes Symbol (Klasse, Funktion, Property, Konstante, Type-Alias,
+  Interface, Enum).
+- Ein anderer `// @spec`-Block ohne dazwischenliegendes Symbol — der
+  erste Block ist dann "dangling".
+
+Wenn nach einem Spec-Block kein Symbol mehr folgt (Datei-Ende, oder
+nur weitere Spec-Bloecke):
+
+- Der Block wird **verworfen**.
+- `warnings[]` bekommt einen Eintrag der Form
+  `"dangling spec at line N"`.
+
+### Parser-Strategie
+
+PHP-seitiger State-Machine-Tokenizer (analog M005/0001 fuer JS,
+M007/0001 fuer Nim, M008/0001 fuer Lua). Keine externen Libs, kein
+Subprozess (insbesondere kein Node + TS-Compiler-API), **kein Regex**
+auf Quelltext (Decision 0006).
+
+Begruendung:
+
+- Konsistenz mit der bestehenden Sprach-Parser-Architektur — alle
+  Parser laufen im selben PHP-Prozess, kein neuer Laufzeit-
+  Abhaengigkeit. Decision 0004 ("kein npm, kein Bundler, kein
+  TypeScript") gilt fuer den Speckig-Server-Code; sie schliesst
+  ausdruecklich auch einen Node-Subprozess fuer den Parser aus.
+- Der noetige Subset fuer Spec-Extraktion ist klein: Token-
+  Klassifikation (Comment vs. String vs. Regex vs. Template-Literal,
+  identisch zu JS), Decorator-Praefix `@<ident>(...)`, Top-Level-
+  Symbol-Erkennung mit `class`/`interface`/`enum`/`type`/`function`/
+  `const`/`let`/`var`. Type-Annotationen (nach `:` bis zum
+  Statement-Ende) werden tokenmaessig geschluckt, nicht semantisch
+  verstanden.
+- Generics `<T extends Foo>` werden tokenmaessig durchgelaufen und
+  landen als Source-String in der Signatur. Mapped Types
+  (`{[K in keyof T]: U}`), Conditional Types (`T extends U ? X : Y`),
+  Type-Inference und der gesamte Type-Checker sind
+  **out of scope** — Speckig braucht das fuer Spec-Extraktion nicht.
+
+Subset, den V1 NICHT semantisch versteht (gleicher Boden wie JS plus
+TS-Spezifika):
+
+- **Generics-Constraints** — werden im Source-String mitgefuehrt, kein
+  Constraint-Check.
+- **Mapped / Conditional / Inferred Types** — laufen als Tokens durch.
+- **Decorator-Args** — bleiben als Source-String in `args_source`
+  liegen, kein Parse des Args-Inhalts.
+- **Parameter-Decorators** — gehen tokenmaessig in die Signatur, werden
+  nicht als eigene `decorators[]`-Liste pro Parameter gesammelt.
+- **Namespace-Bloecke** (`namespace X { ... }`) — V1 sammelt nur
+  Top-Level-Symbole; Symbole im Namespace landen nicht in `symbols[]`.
+  Falls noetig: eigene spaetere Erweiterung.
+
+### Edge-Cases die NICHT als Spec erkannt werden duerfen
+
+Der Tokenizer muss diese Faelle korrekt klassifizieren, sonst werden
+String- oder Kommentar-Inhalte faelschlich als Spec gelesen:
+
+- `// @spec`-Text in einzeiligen Strings `'...'` und `"..."`.
+- `// @spec`-Text in Template-Literals `` `...` `` mit
+  `${...}`-Interpolation. Der Tokenizer muss die Tilde-Klammern
+  korrekt matchen, auch bei verschachtelten Strings im Interpolations-
+  Body (`${"x"}`, `` ${`y`} ``).
+- `// @spec`-Text in Regex-Literals `/.../flags`. Kontextabhaengige
+  Erkennung wie in JS — nach Wert-produzierenden Tokens (`identifier`,
+  `number`, `)`, `]`) ist `/` Division; nach Operatoren / Statement-
+  Anfaengen ist `/` Regex-Start.
+- `// @spec`-Text in Block-Kommentaren `/* ... */`.
+- `// @spec`-Text in JSDoc-Bloecken `/** ... */`. JSDoc-Inhalt wird
+  vom Parser ignoriert; nur One-Line-Kommentare `//` werden als
+  Spec-Marker akzeptiert.
+
+Der Tokenizer klassifiziert diese Token-Klassen primaer; `// @spec` ist
+**nur** dann ein Marker, wenn das Token vom Tokenizer als
+"Zeilen-Kommentar" (`comment_line`) eingestuft wurde — nicht innerhalb
+eines String-, Template-, Regex- oder Block-Kommentar-Zustands.
+
+### Beispiel-Output (Ziel-Output fuer M009/0002)
+
+TypeScript-Quelle (Angular-Komponente):
+
+```ts
+// @spec
+// App entry component, mounts at /app-root.
+// @end-spec
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+})
+export class AppComponent {
+  // @spec current user, null when logged out
+  // @end-spec
+  user: User | null = null;
+
+  // @spec
+  // Logs the user in via the auth service.
+  // throws AuthError on bad credentials
+  // @end-spec
+  @LogCall()
+  async login(username: string, password: string): Promise<void> {
+    await this.auth.sign_in(username, password);
+  }
+}
+```
+
+Erwartetes JSON (handgeschrieben):
+
+```json
+{
+  "file": "app.component.ts",
+  "language": "ts",
+  "file_spec": [],
+  "symbols": [
+    {
+      "kind": "class",
+      "name": "AppComponent",
+      "extends": [],
+      "implements": [],
+      "decorators": [
+        {
+          "name": "Component",
+          "args_source": "{ selector: 'app-root', templateUrl: './app.component.html', }"
+        }
+      ],
+      "spec": [
+        "App entry component, mounts at /app-root."
+      ],
+      "members": [
+        {
+          "kind": "property",
+          "name": "user",
+          "type": "User | null",
+          "default": "null",
+          "decorators": [],
+          "spec": ["current user, null when logged out"]
+        },
+        {
+          "kind": "method",
+          "name": "login",
+          "signature": "async login(username: string, password: string): Promise<void>",
+          "decorators": [
+            {"name": "LogCall", "args_source": ""}
+          ],
+          "spec": [
+            "Logs the user in via the auth service.",
+            "throws AuthError on bad credentials"
+          ],
+          "members": []
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+```
+
+Anmerkungen zum Beispiel:
+
+- Die Datei traegt keinen Datei-Header-Spec-Block — der erste
+  `// @spec`-Block steht direkt vor `@Component`/`class AppComponent`
+  und gehoert dadurch zur Klasse.
+- `@Component(...)` und `@LogCall()` zeigen die drei Decorator-Args-
+  Faelle: Args mit Inhalt (`args_source: "{ ... }"`) und leere Klammern
+  (`args_source: ""`). Ein hypothetischer `@Override` ohne Klammern
+  haette `args_source: null`.
+- Beim `user`-Property zeigt das Beispiel das `decorators: []`-Default
+  (kein Decorator vorhanden). Renderer behandeln fehlendes Feld und
+  leeres Array gleich.
+
 ## Ausgabe-Schema
 
 JSON-Objekt mit fester Form. Erfolgs-Pfad:
@@ -606,6 +953,7 @@ Fehler-Pfad (Vendor-Blacklist, unsupported language, file not found):
 | `implements` | string[] | `class`                | Implementierte Interfaces; leer wenn keine. |
 | `spec`       | string[] | immer                  | Spec-Zeilen des Symbols, ohne `// `-Praefix, ohne `@spec`/`@end-spec`. Leer wenn das Symbol keine Spec hat. |
 | `members`    | object[] | `class`, `interface`, `trait`, `method` | Properties / Konstanten / Methoden eines Containers; bei `method` lokale Spec-Bloecke (`kind: "local"`). Leer wenn keine. |
+| `decorators` | object[] | optional, TS-only      | Decorator-Liste eines Symbols. Form `[{name, args_source}]`. Default `[]`. Wird in V1 nur vom TS-Parser gesetzt; PHP/JS/Nim/Lua emittieren das Feld nicht. Renderer ignoriert das Feld bei Sprachen, die es nicht setzen. Details siehe Sektion `## TypeScript`. |
 
 ### "Direkt darauffolgend" — praezise
 
@@ -789,7 +1137,8 @@ leere Felder). Die Bloecke unten sind die Vorlage fuer M005/0002.
 | `js_parser.php`    | Sprach-Parser fuer `.js`. Stub in M005/0001, gefuellt in M005/0003. |
 | `nim_parser.php`   | Sprach-Parser fuer `.nim`. Stub in M007/0001, gefuellt in M007/0002. |
 | `lua_parser.php`   | Sprach-Parser fuer `.lua` (inkl. Love2D). Stub in M008/0001, gefuellt in M008/0002. |
-| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie, Lua-Strategie. |
+| `ts_parser.php`    | Sprach-Parser fuer `.ts` (inkl. Angular). Stub in M009/0001, gefuellt in M009/0002. |
+| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie, Lua-Strategie, TS-Strategie. |
 
 Spaeter (M005/0004) kommt `tests/run.php` mit Fixtures dazu;
 M005/0005 verdrahtet `spec_parser::parse()` in `app/file.php`.

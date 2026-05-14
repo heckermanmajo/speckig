@@ -5,7 +5,7 @@ Goal: `// @spec ... // @end-spec`-Bloecke in TypeScript-Quellcode (Endung `.ts`)
 Status: planned
 
 ## Tickets
-- [ ] open/0001-ts-architecture-and-decorators.md
+- [x] archive/0001-ts-architecture-and-decorators.md
 - [ ] open/0002-ts-parser.md
 - [ ] open/0003-ts-fixture-tests.md
 - [ ] open/0004-ts-ui-dispatch.md
