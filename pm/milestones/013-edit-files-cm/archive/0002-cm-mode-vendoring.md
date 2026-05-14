@@ -55,3 +55,46 @@ JS-Helper-Mapping `extension_to_mode()` in `editor.js` ergaenzen.
 - Mode-Lazy-Load via dynamic script-tag — alle Modes werden statisch
   eingebunden (folgt in 0003).
 - Theme-Files / Linter / Folder-Plugins.
+
+## Done
+- Acht neue Vendor-Files unter `app/_share/vendor/js/codemirror-modes/`,
+  alle 1:1 von `https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/`
+  per `curl -sSL`, MIT-Originalheader unveraendert:
+  - `php.js` (18339 B)
+  - `javascript.js` (38894 B)
+  - `clike.js` (37362 B)
+  - `shell.js` (5383 B)
+  - `css.js` (40492 B)
+  - `xml.js` (13353 B)
+  - `yaml.js` (3734 B)
+  - `htmlmixed.js` (5688 B) — `php.js` referenziert per `require`
+    `../htmlmixed/htmlmixed`, also vendored mit. Weitere Querverweise
+    aus dem Set bleiben innerhalb der jetzt vendored Modes (htmlmixed
+    zieht xml, javascript, css — alle vorhanden).
+- `app/_share/js/editor.js`:
+  - Neue Funktion `extension_to_mode(extension)` mit dem im Ticket
+    spezifizierten Mapping (lowercase, fuehrender Punkt wird gestripped),
+    `null` als Fallback fuer unbekannte/leere/non-string Inputs.
+  - `mount()` neue Signatur `mount(article_element, raw_markdown, path,
+    mode_name)`. `mode_name === undefined` ⇒ Fallback `"markdown"`
+    (Backwards-Compat fuer Plan-/Info-View). `mode_name === null` oder
+    `""` ⇒ kein `mode`-Option ⇒ Plaintext. Sonst wird der Wert direkt
+    an `CodeMirror.fromTextArea` durchgereicht.
+  - `window.speckig_editor.extension_to_mode` exposed.
+  - Spec-Block oben aktualisiert (mehrere Modes, neue Signatur,
+    Helper).
+- `pm/decisions/0007-editor-vendoring.md` um eine Zeile ergaenzt
+  (append-only): "Mit M013 zusaetzlich vendored: php, javascript,
+  clike, shell, css, xml, yaml, htmlmixed (Dependency von php).".
+- Smoketests (`php -S 127.0.0.1:8086 -t app`):
+  - Alle neun Mode-Files (incl. markdown aus 0001) liefern
+    `HTTP/1.1 200 OK` auf `/_share/vendor/js/codemirror-modes/<m>.js`.
+  - `plan.php` und `info.php` liefern weiter 200, beide referenzieren
+    weiterhin `editor.js`.
+- Node-Mapping-Smoketest (Eval-Harness mit `global.window = {}`)
+  laeuft mit Exit-Code 0 ueber 10 Faelle (php, ts, lua, md, css,
+  yaml, sh, xml, xyz, "").
+- `node --check app/_share/js/editor.js` clean.
+- Streu-File-Check: nur kanonisches `./app.sqlite`.
+
+See: pm/decisions/0007-editor-vendoring.md

@@ -18,7 +18,7 @@ Status: planned
       tmp+rename; Schwarzliste fuer `app/_share/vendor/`, `.git/`,
       `app/_share/spec_parser/`; Binary-Guard via Byte-Check; 1 MB
       Body-Limit.
-- [ ] open/0002-cm-mode-vendoring.md — Sieben weitere CodeMirror-Mode-
+- [x] archive/0002-cm-mode-vendoring.md — Sieben weitere CodeMirror-Mode-
       Files vendoren (`php`, `javascript`, `clike`, `shell`, `css`,
       `xml`, `yaml`) und Extension→Mode-Mapping als JS-Helper in
       `editor.js` ergaenzen. Decision 0007 ergaenzen.

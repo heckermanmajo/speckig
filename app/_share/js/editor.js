@@ -1,8 +1,9 @@
 // @spec
 // editor.js — duenner Wrapper um CodeMirror 5 (vendored unter
 // /_share/vendor/js/codemirror.min.js). Eingebunden in `app/plan.php`
-// und `app/info.php` zusammen mit dem `markdown`-Mode und der
-// `codemirror.css`. Decision-File: `pm/decisions/0007-editor-vendoring.md`.
+// und `app/info.php` zusammen mit Mode-Files unter
+// `/_share/vendor/js/codemirror-modes/` und der `codemirror.css`.
+// Decision-File: `pm/decisions/0007-editor-vendoring.md`.
 //
 // Verantwortung: eine einzelne Editor-Instanz pro Seite mounten,
 // den Buffer-Inhalt abfragen, Editor wieder abbauen, oder den
@@ -11,13 +12,24 @@
 // fest, mount() raeumt eine vorhandene Instanz vorher per destroy()
 // ab (Out-of-scope: mehrere Editor-Instanzen parallel).
 //
+// Seit M013/0002 stehen mehrere Modes zur Verfuegung (markdown, php,
+// javascript, clike, shell, css, xml/htmlmixed, yaml). `mount()` hat
+// einen optionalen `mode_name`-Parameter; Default ist `"markdown"`
+// fuer Rueckwaertskompatibilitaet mit Plan- und Info-View. Der
+// Helper `extension_to_mode(extension)` mappt eine Datei-Extension
+// (z.B. `"php"`, `".ts"`, `"lua"`) auf den passenden CodeMirror-
+// Mode-String — Aufrufer in der Tree-View ziehen sich den Mode so
+// aus dem Dateipfad. Unbekannte Extensions liefern `null`; mount()
+// behandelt `null`/leer als „kein Mode setzen", also Plaintext.
+//
 // NICHT zustaendig fuer: DOM-Layout, Edit/Save/Cancel-Buttons,
 // Reload nach Save, Sichtbarkeits-Regeln (z.B. archive/ read-only).
 // Aufrufer (plan_loader.js, info-loader, ...) bauen ihre Buttons
 // selbst und rufen mount/save/destroy. Save aus diesem Layer wird
 // nicht automatisch getriggert — der Aufrufer entscheidet wann.
 //
-// Expose: window.speckig_editor = { mount, get_value, destroy, save }.
+// Expose: window.speckig_editor = { mount, get_value, destroy, save,
+// extension_to_mode }.
 // Style (Decision 0004 + code_style.md): BSD-Klammern, snake_case,
 // `what_cond_means`-Pattern, let/const, async/await, defensive
 // try/catch um fetch — Vorbild ist `plan_loader.js`.
@@ -34,7 +46,7 @@
 {
     let cm_instance = null;
 
-    function mount(article_element, raw_markdown, path)
+    function mount(article_element, raw_markdown, path, mode_name)
     {
         let article_exists = article_element !== null && article_element !== undefined;
 
@@ -88,13 +100,95 @@
 
         article_element.appendChild(textarea_element);
 
-        cm_instance = window.CodeMirror.fromTextArea(textarea_element, {
-            mode:          "markdown",
-            lineNumbers:   true,
-            lineWrapping:  true,
-        });
+        // mode_name-Auswahl:
+        // - undefined  (alter 3-Arg-Aufruf)  → Fallback auf "markdown".
+        // - null / ""                        → kein mode-Option ⇒ Plaintext.
+        // - sonst                            → mode_name wird durchgereicht.
+        let mode_arg_omitted = mode_name === undefined;
+        let mode_explicit_plain =
+            mode_name === null
+            || (typeof mode_name === "string" && mode_name === "");
+
+        let cm_options = {
+            lineNumbers:  true,
+            lineWrapping: true,
+        };
+
+        if (mode_arg_omitted)
+        {
+            cm_options.mode = "markdown";
+        }
+        else if (mode_explicit_plain)
+        {
+            // bewusst kein mode setzen → CodeMirror laeuft im text/plain-Default
+        }
+        else
+        {
+            cm_options.mode = mode_name;
+        }
+
+        cm_instance = window.CodeMirror.fromTextArea(textarea_element, cm_options);
 
         return cm_instance;
+    }
+
+    function extension_to_mode(extension)
+    {
+        let ext_is_string = typeof extension === "string";
+
+        if (! ext_is_string)
+        {
+            return null;
+        }
+
+        let ext_normalized = extension.toLowerCase().replace(/^\./, "");
+
+        // Mapping. Kein Switch, plain if-Chain damit jeder Mapping-Pfad
+        // visuell einzeln steht.
+        let is_markdown = ext_normalized === "md" || ext_normalized === "markdown";
+        if (is_markdown) { return "markdown"; }
+
+        let is_php = ext_normalized === "php" || ext_normalized === "phtml";
+        if (is_php) { return "application/x-httpd-php"; }
+
+        let is_js_family =
+            ext_normalized === "js"
+            || ext_normalized === "ts"
+            || ext_normalized === "tsx"
+            || ext_normalized === "jsx"
+            || ext_normalized === "mjs";
+        if (is_js_family) { return "javascript"; }
+
+        let is_clike_family =
+            ext_normalized === "lua"
+            || ext_normalized === "nim"
+            || ext_normalized === "groovy"
+            || ext_normalized === "java"
+            || ext_normalized === "c"
+            || ext_normalized === "cpp"
+            || ext_normalized === "h"
+            || ext_normalized === "cs";
+        if (is_clike_family) { return "text/x-csrc"; }
+
+        let is_shell =
+            ext_normalized === "sh"
+            || ext_normalized === "bash"
+            || ext_normalized === "zsh";
+        if (is_shell) { return "shell"; }
+
+        let is_css = ext_normalized === "css";
+        if (is_css) { return "css"; }
+
+        let is_xml_family =
+            ext_normalized === "xml"
+            || ext_normalized === "html"
+            || ext_normalized === "htm";
+        if (is_xml_family) { return "xml"; }
+
+        let is_yaml = ext_normalized === "yaml" || ext_normalized === "yml";
+        if (is_yaml) { return "yaml"; }
+
+        return null;
     }
 
     function get_value()
@@ -181,9 +275,10 @@
     }
 
     window.speckig_editor = {
-        mount:     mount,
-        get_value: get_value,
-        destroy:   destroy,
-        save:      save,
+        mount:             mount,
+        get_value:         get_value,
+        destroy:           destroy,
+        save:              save,
+        extension_to_mode: extension_to_mode,
     };
 })();
