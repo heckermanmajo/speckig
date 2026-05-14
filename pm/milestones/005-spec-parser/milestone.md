@@ -6,7 +6,7 @@ Status: planned
 
 ## Tickets
 - [x] archive/0001-parser-architecture-and-schema.md
-- [ ] open/0002-php-parser.md
+- [x] archive/0002-php-parser.md
 - [ ] open/0003-js-parser.md
 - [ ] open/0004-parser-fixture-tests.md
 - [ ] open/0005-ui-spec-view-in-file-render.md
