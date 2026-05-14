@@ -30,9 +30,8 @@ include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
 # --- Sidebar-Daten holen -----------------------------------------------------
 # Read-only: pm_reader liefert die fertige Struktur, kein Filtern noetig.
 
-$milestones    = pm_reader::list_milestones();
-$bugs          = pm_reader::list_bugs();
-$info_sections = pm_reader::list_info_sections();
+$milestones = pm_reader::list_milestones();
+$bugs       = pm_reader::list_bugs();
 
 # --- Header-Pfad-Label -------------------------------------------------------
 # `?path=...` ist heute nur "durchgereicht": fuer den Header zeigen wir den
@@ -212,63 +211,6 @@ function render_bugs_block(string $heading, array $bugs, string $section_data_pa
     return $rendered;
 }
 
-// @spec
-// Rendert eine Info-Sektion (Ideas/Reports/Decisions/Audits/Terms) als
-// `<details class="plan-bugs">`-Block.
-// $heading: Summary-Text ("Ideas", "Reports", ...).
-// $entries: Array von `{slug, path, title}` aus pm_reader::list_info_sections().
-// $section_data_path: Wert fuer `data-path` (z.B. "pm/ideas") — fuer
-//   tree_collapse.js, das den Open/Closed-Zustand persistiert.
-// Bei leerer Liste wird `<p class="plan-tickets-empty">keine</p>` gerendert,
-// analog zu render_bugs_block. Klick-Targets nutzen `plan-ticket-link`,
-// damit plan_loader.js ohne Aenderung greift.
-// Strukturell sehr nah an render_bugs_block — bewusst dupliziert statt
-// abstrahiert (Don't add abstractions beyond what the task requires).
-// @end-spec
-function render_info_section(string $heading, array $entries, string $section_data_path): string
-{
-    $rendered = "<details class=\"plan-bugs\""
-        . " data-path=\"" . app::escape($section_data_path) . "\">";
-
-    $rendered .= "<summary class=\"plan-milestone-summary\">" . app::escape($heading) . "</summary>";
-    $rendered .= "<div class=\"plan-milestone-body\">";
-
-    $entries_are_empty = count($entries) === 0;
-
-    if ($entries_are_empty)
-    {
-        $rendered .= "<p class=\"plan-tickets-empty\">keine</p>";
-    }
-    else
-    {
-        $rendered .= "<ul class=\"plan-tickets\">";
-
-        foreach ($entries as $entry)
-        {
-            $entry_href = "/plan.php?path=" . app::escape($entry["path"]);
-
-            $rendered .= "<li>";
-            $rendered .= "<a href=\"" . $entry_href . "\" class=\"plan-ticket-link\">";
-            $rendered .= app::escape($entry["slug"]);
-
-            if ($entry["title"] !== "")
-            {
-                $rendered .= " — " . app::escape($entry["title"]);
-            }
-
-            $rendered .= "</a>";
-            $rendered .= "</li>";
-        }
-
-        $rendered .= "</ul>";
-    }
-
-    $rendered .= "</div>";
-    $rendered .= "</details>";
-
-    return $rendered;
-}
-
 # --- Sidebar zusammenbauen ---------------------------------------------------
 
 $sidebar_html = "";
@@ -297,14 +239,6 @@ if ($archived_milestones_present)
 $sidebar_html .= "<h2 class=\"plan-section-heading\">Bugs</h2>";
 $sidebar_html .= render_bugs_block("Open",    $bugs["open"],    "pm/bugs/open");
 $sidebar_html .= render_bugs_block("Archive", $bugs["archive"], "pm/bugs/archive");
-
-# Info-Section (M011/0001) — Ideas/Reports/Decisions/Audits/Terms
-$sidebar_html .= "<h2 class=\"plan-section-heading\">Info</h2>";
-$sidebar_html .= render_info_section("Ideas",     $info_sections["ideas"],     "pm/ideas");
-$sidebar_html .= render_info_section("Reports",   $info_sections["reports"],   "pm/reports");
-$sidebar_html .= render_info_section("Decisions", $info_sections["decisions"], "pm/decisions");
-$sidebar_html .= render_info_section("Audits",    $info_sections["audits"],    "pm/audits");
-$sidebar_html .= render_info_section("Terms",     $info_sections["terms"],     "pm/terms");
 
 ?>
 <!doctype html>

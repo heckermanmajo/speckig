@@ -15,11 +15,10 @@ Status: planned
 - [x] archive/0001-info-sections-in-sidebar.md — pm_reader::list_info_sections,
       Sidebar-Block in plan.php (Klassen-Wiederverwendung, keine
       JS-/CSS-Aenderung).
-- [ ] open/0002-plan-sidebar-info-sections.md — Sidebar in plan.php um
-      die neuen Sektionen erweitern, je eigene `<details>`-Bloecke.
-- [ ] open/0003-plan-loader-info-paths.md — plan_loader.js akzeptiert
-      die neuen Pfade (pm/ideas/*, pm/reports/*, pm/decisions/*,
-      pm/audits/*, pm/terms/*) und rendert sie als Markdown.
+- [x] archive/0002-info-tab-route.md — Eigener Info-Tab im Header
+      (Files / Plan / Info), neue Route `app/info.php` mit den fuenf
+      Info-Sektionen, Plan-Sidebar wieder reduziert auf Milestones + Bugs,
+      `plan_loader.js` dual-route via `window.location.pathname`.
 
 ## Out of scope
 - Inline-Edit / Neue Files anlegen via UI — eigener Milestone (M014).

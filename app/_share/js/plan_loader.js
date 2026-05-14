@@ -1,14 +1,19 @@
 // @spec
-// plan_loader.js — AJAX-Loader fuer den Plan-View Content-Bereich (M006/0003).
-// Sidebar-Klicks in `plan.php` laden /pm.php per fetch, schreiben das
-// gerenderte Markdown in <article id="content"> und spiegeln den Pfad
-// via history.pushState in der URL.
+// plan_loader.js — AJAX-Loader fuer den Content-Bereich der Plan- UND
+// Info-View. Eingebunden in `app/plan.php` (M006/0003) und in
+// `app/info.php` (M011/0002). Sidebar-Klicks laden /pm.php per fetch,
+// schreiben das gerenderte Markdown in <article id="content"> und
+// spiegeln den Pfad via history.pushState in der URL.
+//
+// Dual-Route-faehig: der Push-State-Pfad wird aus
+// `window.location.pathname` abgeleitet (statt einer hartcodierten
+// Route), damit derselbe Loader auf /plan.php UND /info.php sauber
+// arbeitet — beide Seiten verwenden dieselben Sidebar-Selektoren
+// `a.plan-milestone-link, a.plan-ticket-link`.
 //
 // Bewusst getrennt vom content_loader.js: dieser Loader bindet sich an
-// `a.plan-milestone-link, a.plan-ticket-link` (Sidebar-Selektoren aus
-// plan.php) und laeuft NUR auf der Plan-View, weil das Script
-// ausschliesslich dort eingebunden wird. Keine Vermischung der Klick-
-// Handler mit der Tree-View.
+// die Plan-/Info-Sidebar-Selektoren und laeuft nur dort, wo das Script
+// eingebunden ist. Keine Vermischung der Klick-Handler mit der Tree-View.
 //
 // Style (Decision 0004 + code_style.md): BSD-Klammern, snake_case,
 // `what_cond_means`-Pattern, let/const, async/await, defensive try/catch
@@ -260,7 +265,7 @@
 
         if (do_push_state)
         {
-            let new_url = "/plan.php?path=" + encodeURIComponent(path);
+            let new_url = window.location.pathname + "?path=" + encodeURIComponent(path);
             history.pushState({ path: path }, "", new_url);
         }
     }
