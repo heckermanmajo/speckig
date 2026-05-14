@@ -57,6 +57,7 @@ Die Endung des Eingabe-Pfads bestimmt den Sprach-Parser:
 | `.php` | `php_parser::parse()`  | nutzt `token_get_all` (M005/0002)   |
 | `.js`  | `js_parser::parse()`   | PHP-seitiger Tokenizer (M005/0003)  |
 | `.nim` | `nim_parser::parse()`  | PHP-seitiger Tokenizer (M007/0002)  |
+| `.lua` | `lua_parser::parse()`  | PHP-seitiger Tokenizer (M008/0002)  |
 | sonst  | abgelehnt              | `{"error": "unsupported language"}` |
 
 Pfade unter `app/_share/vendor/` werden **vor** dem Sprach-Dispatch
@@ -326,6 +327,236 @@ Erwartetes JSON (handgeschrieben):
 }
 ```
 
+## Lua
+
+Lua ist die vierte unterstuetzte Sprache (Milestone M008). Der Parser ist
+ein Stub in M008/0001 (dieses Ticket); M008/0002 fuellt ihn. Zielpublikum
+sind handgeschriebene Lua-Quellen, insbesondere Love2D-Spiele
+(`love.load`, `love.update`, `love.draw`, ...).
+
+### Marker-Konvention
+
+Spec-Bloecke in Lua werden mit **`-- @spec`** ... **`-- @end-spec`**
+markiert — als normale Lua-Zeilen-Kommentare.
+
+Begruendung:
+
+- Lua hat `--` als einzigen Zeilenkommentar-Marker; einen Doc-Comment-
+  Marker wie Nims `##` gibt es nicht. Wir bleiben darum bei `-- @spec` /
+  `-- @end-spec` und schliessen damit visuell an die PHP/JS-Konvention
+  (`// @spec`) an — nur das Praefix wechselt.
+- Block-Kommentare `--[[ ... ]]` und Long-Strings `[[ ... ]]` werden
+  ausdruecklich **nicht** als Spec-Marker erkannt (siehe Edge-Cases).
+
+Beispiel (Love2D-Update):
+
+```lua
+-- @spec
+-- Step the simulation forward by dt seconds.
+-- dt is the time elapsed since the last frame, always > 0
+-- @end-spec
+function love.update(dt)
+    player.x = player.x + player.vx * dt
+end
+```
+
+### Granularitaet
+
+Spec-Bloecke koennen vor folgenden Symbolen stehen:
+
+- **Datei-Header** — erster Block der Datei, vor jedem Top-Level-Symbol.
+- **Top-Level `function name(...)`** — globale Funktion.
+- **Qualifizierte Funktion `function table.method(...)`** — z.B.
+  `function love.load()`, `function love.update(dt)`. Das ist die
+  Standard-Engine-API in Love2D und wird als ein einzelnes Symbol mit
+  qualifiziertem Namen (`name: "love.load"`) erkannt.
+- **`local function name(...)`** — modulokale Funktion.
+- **`local name = ...`** — modulokale Variable / Tabelle / Konstante auf
+  Top-Level (Konstanten, Tabellen-Definitionen).
+- **Tabellen-Felder mit Specs** innerhalb eines Tabellen-Literals
+  `local foo = { ... }`, deren Eintraege durch Spec-Bloecke vorangestellt
+  sind.
+- **Lokale Spec-Bloecke** innerhalb eines Funktions-Body — als
+  `members[]`-Eintrag mit `kind: "local"`.
+
+### `kind`-Werte fuer Lua-Symbole
+
+| `kind`           | Symbol-Typ                                                      |
+|------------------|------------------------------------------------------------------|
+| `function`       | Top-Level `function name(...) end`                               |
+| `method`         | Qualifizierte `function table.method(...) end` (Love2D-Pattern)  |
+| `local-function` | `local function name(...) end`                                   |
+| `table`          | `local name = { ... }` — Tabellen-Definition auf Top-Level       |
+| `field`          | Feld innerhalb einer Tabellen-Literal-Definition mit Spec        |
+| `local-var`      | `local name = <skalar>` — Konstanten/Variable                    |
+| `local`          | Spec-Block innerhalb eines Funktions-Body (lokale Notiz)         |
+
+Wir uebernehmen Lua-Schluesselwoerter direkt als `kind`-Strings, ergaenzt
+um die Lua-spezifischen Unterscheidungen zwischen unqualifiziertem
+`function`, qualifiziertem `method` und `local-function`. Felder eines
+Tabellen-Literals heissen `field` (gleicher Name wie bei Nim-Object-
+Feldern — semantisch dasselbe). Skalar- vs. Tabellen-Locals werden
+unterschieden, weil Tabellen Member tragen koennen, Skalare nicht.
+
+### "Direkt darauffolgend" — praezise
+
+Ein Spec-Block bezieht sich auf das **naechste deklarations-tragende
+Symbol** nach `-- @end-spec`. Erlaubt zwischen Spec-Block und Symbol:
+
+- Whitespace (Spaces, Tabs, Zeilenumbrueche) — beliebig viel.
+- Andere `--`-Zeilen-Kommentare, die **nicht** mit `-- @spec` beginnen
+  (regulaere Code-Kommentare).
+- Block-Kommentare `--[[ ... ]]` (auch `--[=[ ... ]=]` mit beliebig
+  vielen `=`).
+
+**Nicht** erlaubt zwischen Spec-Block und Symbol:
+
+- Ein anderes Symbol (`function`, `local function`, `local`-Deklaration,
+  Top-Level-Statement).
+- Ein anderer `-- @spec`-Block ohne dazwischenliegendes Symbol — der
+  erste Block ist dann "dangling".
+
+Wenn nach einem Spec-Block kein Symbol mehr folgt (Datei-Ende, oder nur
+weitere Spec-Bloecke):
+
+- Der Block wird **verworfen**.
+- `warnings[]` bekommt einen Eintrag der Form
+  `"dangling spec at line N"`.
+
+### Parser-Strategie
+
+PHP-seitiger State-Machine-Tokenizer (analog M005/0001 fuer JS und
+M007/0001 fuer Nim). Keine externen Libs, kein Subprozess, **kein Regex**
+auf Quelltext (Decision 0006).
+
+Begruendung:
+
+- Konsistenz mit der bestehenden Sprach-Parser-Architektur — alle Parser
+  laufen im selben PHP-Prozess, kein neuer Laufzeit-Abhaengigkeit.
+- Der noetige Subset (Token-Klassifikation: Comment vs. Block-Comment vs.
+  String vs. Long-String; Top-Level-Symbol-Erkennung fuer `function`,
+  `local`, qualifizierte Namen `a.b.c`) ist klein genug fuer einen
+  handgeschriebenen Tokenizer.
+- Eine externe Lua-Toolchain als Backend (z.B. `luac -l`, `luacheck`) ist
+  ausdruecklich Out-of-Scope und waere eine eigene Decision.
+
+Subset, den V1 NICHT semantisch versteht:
+
+- **Metatables / `setmetatable`** — keine Vererbungs-Analyse, keine
+  OO-Synthese aus `__index`-Ketten.
+- **Closures jenseits des Top-Levels** — innere Funktionen werden nicht
+  als eigene Symbole gesammelt; sie laufen als Code unter ihrer
+  Outer-Funktion.
+
+### Edge-Cases die NICHT als Spec erkannt werden duerfen
+
+Der Tokenizer muss diese Faelle korrekt klassifizieren, sonst werden
+String-Inhalte oder Block-Kommentar-Inhalte faelschlich als Spec gelesen:
+
+- `-- @spec`-Text in einzeiligen Strings `'...'` und `"..."`.
+- `-- @spec`-Text in Long-Strings `[[ ... ]]` und `[=[ ... ]=]` mit
+  beliebig vielen `=` (matched levels — `[==[ ... ]==]` schliesst nur
+  bei genau zwei `=`).
+- `-- @spec`-Text in Block-Kommentaren `--[[ ... ]]` und
+  `--[=[ ... ]=]`. Die Tiefe der `=` muss matchen; das ist Lua-Standard.
+- `--[[`-Block-Kommentar darf vom Tokenizer korrekt vom Long-String
+  `[[...]]` unterschieden werden — der Praefix `--` macht den
+  Unterschied. Konkret: `[[` ohne vorangestelltes `--` ist Long-String,
+  `--[[` ist Block-Kommentar.
+
+Der Tokenizer klassifiziert diese Token-Klassen primaer; `-- @spec` ist
+**nur** dann ein Marker, wenn das Token vom Tokenizer als
+"Zeilen-Kommentar" eingestuft wurde — nicht innerhalb eines String-,
+Long-String- oder Block-Kommentar-Zustands.
+
+### Beispiel-Output (Ziel-Output fuer M008/0002)
+
+Lua-Quelle (Love2D-Hauptdatei):
+
+```lua
+-- @spec
+-- Demo player loop: load assets, advance position, draw the world.
+-- @end-spec
+
+local player = { x = 0, y = 0, vx = 50 }
+
+-- @spec
+-- Engine entry point. Loads the player sprite once at startup.
+-- called by Love2D before the first frame
+-- @end-spec
+function love.load()
+    player.sprite = love.graphics.newImage("player.png")
+end
+
+-- @spec
+-- Advance simulation by dt seconds.
+-- dt is always > 0 (Love2D guarantees this)
+-- player.x is clamped to the screen width
+-- @end-spec
+function love.update(dt)
+    player.x = player.x + player.vx * dt
+    if player.x > love.graphics.getWidth() then
+        player.x = 0
+    end
+end
+
+-- @spec
+-- Draw the player sprite at its current position.
+-- @end-spec
+function love.draw()
+    love.graphics.draw(player.sprite, player.x, player.y)
+end
+```
+
+Erwartetes JSON (handgeschrieben):
+
+```json
+{
+  "file": "main.lua",
+  "language": "lua",
+  "file_spec": [
+    "Demo player loop: load assets, advance position, draw the world."
+  ],
+  "symbols": [
+    {
+      "kind": "method",
+      "name": "love.load",
+      "signature": "function love.load()",
+      "spec": [
+        "Engine entry point. Loads the player sprite once at startup.",
+        "called by Love2D before the first frame"
+      ],
+      "members": []
+    },
+    {
+      "kind": "method",
+      "name": "love.update",
+      "signature": "function love.update(dt)",
+      "spec": [
+        "Advance simulation by dt seconds.",
+        "dt is always > 0 (Love2D guarantees this)",
+        "player.x is clamped to the screen width"
+      ],
+      "members": []
+    },
+    {
+      "kind": "method",
+      "name": "love.draw",
+      "signature": "function love.draw()",
+      "spec": [
+        "Draw the player sprite at its current position."
+      ],
+      "members": []
+    }
+  ],
+  "warnings": []
+}
+```
+
+Die `local player = { ... }`-Zeile traegt keine Spec und erscheint
+darum nicht in `symbols` — Symbole ohne `@spec` werden nur dann
+gesammelt, wenn sie ein Container fuer andere Spec-tragende Member sind.
+
 ## Ausgabe-Schema
 
 JSON-Objekt mit fester Form. Erfolgs-Pfad:
@@ -557,7 +788,8 @@ leere Felder). Die Bloecke unten sind die Vorlage fuer M005/0002.
 | `php_parser.php`   | Sprach-Parser fuer `.php`. Stub in M005/0001, gefuellt in M005/0002. |
 | `js_parser.php`    | Sprach-Parser fuer `.js`. Stub in M005/0001, gefuellt in M005/0003. |
 | `nim_parser.php`   | Sprach-Parser fuer `.nim`. Stub in M007/0001, gefuellt in M007/0002. |
-| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie. |
+| `lua_parser.php`   | Sprach-Parser fuer `.lua` (inkl. Love2D). Stub in M008/0001, gefuellt in M008/0002. |
+| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie, Lua-Strategie. |
 
 Spaeter (M005/0004) kommt `tests/run.php` mit Fixtures dazu;
 M005/0005 verdrahtet `spec_parser::parse()` in `app/file.php`.
