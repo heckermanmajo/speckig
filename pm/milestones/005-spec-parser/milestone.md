@@ -9,7 +9,7 @@ Status: planned
 - [x] archive/0002-php-parser.md
 - [ ] open/0003-js-parser.md
 - [ ] open/0004-parser-fixture-tests.md
-- [ ] open/0005-ui-spec-view-in-file-render.md
+- [x] archive/0005-ui-spec-view-in-file-render.md
 
 ## Out of scope
 - Andere Sprachen (Python, TS, Java, ...) — kommen, wenn Bedarf entsteht.

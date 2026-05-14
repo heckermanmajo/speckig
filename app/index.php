@@ -214,6 +214,20 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
         nav a { text-decoration: none; cursor: pointer; }
         nav a:hover { text-decoration: underline; }
         article pre { white-space: pre-wrap; word-wrap: break-word; }
+
+        /* spec-view (M005/0005): kollabierbare Spec-Ansicht ueber dem Code. */
+        .spec-view { margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
+        .spec-view-summary { padding: 0.4rem 0.75rem; cursor: pointer; font-weight: 600; background: #f0f0f0; border-radius: 4px 4px 0 0; }
+        .spec-view[open] .spec-view-summary { border-bottom: 1px solid #ccc; border-radius: 4px 4px 0 0; }
+        .spec-view-body { padding: 0.75rem; }
+        .spec-view-file-spec { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #ddd; }
+        .spec-view-symbols, .spec-view-members { list-style: none; padding-left: 0; margin: 0; }
+        .spec-view-members { margin-left: 1rem; padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-top: 0.5rem; }
+        .spec-view-symbol { margin: 0.5rem 0; }
+        .spec-view-signature { display: block; font-family: ui-monospace, monospace; font-size: 0.9rem; color: #1a1a1a; padding: 0.15rem 0; }
+        .spec-view-spec-line { margin: 0.15rem 0 0.25rem 0.5rem; color: #444; font-size: 0.92rem; }
+        .spec-view-warnings { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed #ddd; }
+        .spec-view-warning { margin: 0.15rem 0; color: #884; font-size: 0.88rem; }
     </style>
 </head>
 <body>

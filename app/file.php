@@ -14,8 +14,10 @@ declare(strict_types=1);
 
 include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
 require_once $_SERVER["DOCUMENT_ROOT"] . "/_share/vendor/Parsedown.php";
+require_once $_SERVER["DOCUMENT_ROOT"] . "/_share/spec_parser/spec_parser.php";
 
 use _share\app;
+use _share\spec_parser\spec_parser;
 
 # --- Response immer JSON ---
 
@@ -96,10 +98,97 @@ else
     $rendered_html = "<pre>" . app::escape($raw_file_contents) . "</pre>";
 }
 
+# --- spec-view payload (M005/0005) ------------------------------------------
+# Fuer .php/.js-Dateien: Parser-Output anhaengen, damit das Frontend ueber
+# dem Code eine Spec-View rendern kann. Andere Endungen liefern null.
+# Pfad an den Parser: bevorzugt repo-relativ (fuer "file"-Anzeige im Schema),
+# Fallback ist der absolute Pfad. Vendor- und unsupported-Dateien geben einen
+# Error im Schema zurueck — wir reichen Errors trotzdem durch (das Frontend
+# darf entscheiden, sie nicht zu zeigen). Leere Schemata ohne file_spec UND
+# ohne symbols UND ohne error werden auf null kondensiert: kein Mehrwert,
+# keine ueberfluessige Spec-View im UI.
+
+# Closure (selbst-referenziell via use(&$...)): rekursive Suche nach
+# mind. einer spec-Zeile in den Symbolen oder ihren Members. Damit erkennen
+# wir Dateien wie db.php, deren Top-Level-Klasse zwar im Schema auftaucht,
+# aber keine @spec-Marker traegt — solche Dateien sollen kein Spec-View
+# bekommen ("kein Mehrwert"-Filter).
+$spec_walker = function (array $symbol_list) use (&$spec_walker): bool
+{
+    foreach ($symbol_list as $symbol)
+    {
+        $symbol_has_spec_lines =
+            isset($symbol["spec"])
+            && is_array($symbol["spec"])
+            && count($symbol["spec"]) > 0;
+
+        if ($symbol_has_spec_lines)
+        {
+            return true;
+        }
+
+        $members_have_spec =
+            isset($symbol["members"])
+            && is_array($symbol["members"])
+            && $spec_walker($symbol["members"]);
+
+        if ($members_have_spec)
+        {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+$spec_payload   = null;
+$language_is_supported_for_spec =
+    $file_extension === "php"
+    || $file_extension === "js";
+
+if ($language_is_supported_for_spec)
+{
+    # Absoluter Pfad: spec_parser nutzt is_file() ohne CWD-Vorsicht, also
+    # MUSS hier absolut rein. Der Vendor-Blacklist-Check matcht textuell
+    # auf "app/_share/vendor/" — das Substring steht auch im absoluten
+    # Pfad, also weiter korrekt. Das "file"-Feld im Schema enthaelt dann
+    # zwar den absoluten Pfad; das Frontend rendert es ohnehin nicht.
+    $parser_result = spec_parser::parse($resolved_path_abs);
+
+    $parser_returned_error = isset($parser_result["error"]);
+
+    # Wir reichen Errors NICHT durch (vendor / unsupported language).
+    # Vendor-Pfade werden vom Browser eh selten angefragt; wenn doch,
+    # ist der Banner kein Mehrwert.
+    if ($parser_returned_error)
+    {
+        $spec_payload = null;
+    }
+    else
+    {
+        # Filter: nur eine Spec-View rendern, wenn die Datei wirklich
+        # mind. eine @spec-Zeile traegt. Datei-Spec ODER irgendein Symbol /
+        # Member traegt eine spec-Zeile.
+        $schema_has_any_spec_content =
+            ! empty($parser_result["file_spec"])
+            || $spec_walker($parser_result["symbols"] ?? []);
+
+        if ($schema_has_any_spec_content)
+        {
+            $spec_payload = $parser_result;
+        }
+        else
+        {
+            $spec_payload = null;
+        }
+    }
+}
+
 # --- success response -------------------------------------------------------
 
 exit(json_encode([
     "ok"   => true,
     "path" => $raw_path,
     "html" => $rendered_html,
+    "spec" => $spec_payload,
 ]));
