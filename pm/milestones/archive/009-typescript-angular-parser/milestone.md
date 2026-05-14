@@ -2,13 +2,13 @@
 
 Goal: `// @spec ... // @end-spec`-Bloecke in TypeScript-Quellcode (Endung `.ts`) werden vom Speckig-Parser extrahiert. Angular-spezifische Patterns (`@Component`, `@Injectable`, `@Directive`, Klassen-Member mit Decorators) werden korrekt erkannt — Spec-Block direkt vor `@Decorator + class` gehoert zur Klasse, Decorator-Args (Selector etc.) werden als Strukturinfo mit aufgenommen. Fixture-getestet, Spec-View im Frontend.
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-ts-architecture-and-decorators.md
 - [x] archive/0002-ts-parser.md
 - [x] archive/0003-ts-fixture-tests.md
-- [ ] open/0004-ts-ui-dispatch.md
+- [x] archive/0004-ts-ui-dispatch.md
 
 ## Out of scope
 - `.tsx` (React/JSX) — eigenes Folge-Ticket, falls noetig. V1 ist `.ts` only.

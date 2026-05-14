@@ -146,7 +146,8 @@ $language_is_supported_for_spec =
     $file_extension === "php"
     || $file_extension === "js"
     || $file_extension === "nim"
-    || $file_extension === "lua";
+    || $file_extension === "lua"
+    || $file_extension === "ts";
 
 if ($language_is_supported_for_spec)
 {

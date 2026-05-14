@@ -43,6 +43,8 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
 .spec-view-members { margin-left: 1rem; padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-top: 0.5rem; }
 .spec-view-symbol { margin: 0.5rem 0; }
 .spec-view-signature { display: block; font-family: ui-monospace, monospace; font-size: 0.9rem; color: #1a1a1a; padding: 0.15rem 0; }
+.spec-view-decorators { margin-bottom: 0.25rem; }
+.spec-view-decorator { display: block; font-family: ui-monospace, monospace; font-size: 0.85rem; color: #666; padding: 0.1rem 0; }
 .spec-view-spec-line { margin: 0.15rem 0 0.25rem 0.5rem; color: #444; font-size: 0.92rem; }
 .spec-view-warnings { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed #ddd; }
 .spec-view-warning { margin: 0.15rem 0; color: #884; font-size: 0.88rem; }

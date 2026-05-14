@@ -290,12 +290,70 @@
         return html_pieces.join("");
     }
 
+    // Decorators (TS) und Annotations (M010 Groovy/Spring) rendern wir
+    // identisch — beide Sprachen tragen Symbol-Schmuck mit `@Name(...)`-Form.
+    // Per-Symbol auf decorators[] || annotations[] zugreifen, damit der
+    // Renderer keine sprachspezifische Verzweigung braucht (siehe Ticket
+    // M009/0004: "Generalisierung fuer M010").
+    function render_decorators(symbol_object)
+    {
+        let decoratorlike = symbol_object.decorators || symbol_object.annotations || [];
+
+        let list_is_array = Array.isArray(decoratorlike);
+
+        if (! list_is_array)
+        {
+            return "";
+        }
+
+        let list_has_entries = decoratorlike.length > 0;
+
+        if (! list_has_entries)
+        {
+            return "";
+        }
+
+        let html_pieces = ["<div class=\"spec-view-decorators\">"];
+
+        decoratorlike.forEach(function (decorator_object)
+        {
+            let decorator_name = decorator_object && decorator_object.name ? String(decorator_object.name) : "";
+            let args_source    = decorator_object ? decorator_object.args_source : null;
+
+            // args_source-Form (siehe README ## TypeScript):
+            //   null      -> @Name        (Decorator ohne Klammern)
+            //   ""        -> @Name()      (leerer Decorator-Factory-Aufruf)
+            //   "<inhalt>"-> @Name(<inhalt>)
+            let decorator_text = "@" + decorator_name;
+
+            let args_are_string = typeof args_source === "string";
+
+            if (args_are_string)
+            {
+                decorator_text += "(" + args_source + ")";
+            }
+
+            html_pieces.push(
+                "<code class=\"spec-view-decorator\">"
+                + escape_html(decorator_text)
+                + "</code>"
+            );
+        });
+
+        html_pieces.push("</div>");
+
+        return html_pieces.join("");
+    }
+
     function render_symbol(symbol_object)
     {
         let kind = symbol_object.kind || "unknown";
         let signature_text = render_signature_for_symbol(symbol_object);
 
         let symbol_html = "<li class=\"spec-view-symbol spec-view-symbol-" + escape_html(kind) + "\">";
+
+        // Decorators/Annotations stehen oben drueber — Angular-typisch.
+        symbol_html += render_decorators(symbol_object);
 
         symbol_html += "<code class=\"spec-view-signature\">";
         symbol_html += escape_html(signature_text);
