@@ -17,7 +17,7 @@ Status: planned
       (`app/_share/vendor/js/codemirror.min.js`, dazu `markdown`-Mode
       und `codemirror.css`), Originalheader behalten, Decision-File
       `pm/decisions/0007-editor-vendoring.md`.
-- [ ] open/0002-save-endpoint.md — `app/pm.php` um POST-Pfad
+- [x] archive/0002-save-endpoint.md — `app/pm.php` um POST-Pfad
       `?action=save&path=...` erweitern; Pfad muss mit `pm/` beginnen
       und auf `.md` enden; Schreib atomar via tmp + `rename()`;
       Antwort JSON `{ok, path}` bzw. `{ok:false, message}`.
