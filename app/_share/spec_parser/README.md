@@ -56,6 +56,7 @@ Die Endung des Eingabe-Pfads bestimmt den Sprach-Parser:
 |--------|------------------------|-------------------------------------|
 | `.php` | `php_parser::parse()`  | nutzt `token_get_all` (M005/0002)   |
 | `.js`  | `js_parser::parse()`   | PHP-seitiger Tokenizer (M005/0003)  |
+| `.nim` | `nim_parser::parse()`  | PHP-seitiger Tokenizer (M007/0002)  |
 | sonst  | abgelehnt              | `{"error": "unsupported language"}` |
 
 Pfade unter `app/_share/vendor/` werden **vor** dem Sprach-Dispatch
@@ -95,6 +96,235 @@ PHP-seitig.
 
 PHP-Parser nutzt das Built-in `token_get_all` — entsprechend keine
 Diskussion noetig.
+
+## Nim
+
+Nim ist die dritte unterstuetzte Sprache (Milestone M007). Der Parser
+ist ein Stub in M007/0001 (dieses Ticket); M007/0002 fuellt ihn.
+
+### Marker-Konvention
+
+Spec-Bloecke in Nim werden mit **`## @spec`** ... **`## @end-spec`**
+markiert — als Doc-Comment-Zeilen.
+
+Begruendung:
+
+- Nim hat `#` als normalen Zeilenkommentar, `##` ist der **Doc-Comment**-
+  Marker (vom Compiler ausgewertet, in `nim doc`-Output uebernommen).
+- "Spec ist Doku" — eine Spec ist die maschinen-lesbare Doku zum Symbol,
+  also semantisch ein Doc-Comment, kein Wegwirf-Kommentar.
+- `## @spec` faellt damit nicht aus dem normalen Nim-Doku-Workflow heraus,
+  sondern setzt darauf auf.
+
+Beispiel:
+
+```nim
+## @spec
+## Distance between two points in 2D.
+## a and b are non-nil
+## returns non-negative float
+## @end-spec
+proc distance(a, b: Point): float = ...
+```
+
+### Granularitaet
+
+Spec-Bloecke koennen vor folgenden Symbolen stehen:
+
+- **Datei-Header** — erster Block der Datei, vor jedem Top-Level-Symbol.
+- **`type T = object`** / **`type T = enum`** / **`type T = tuple`** —
+  Typ-Deklarationen.
+- **`proc`**, **`func`**, **`method`**, **`iterator`**, **`template`**,
+  **`macro`** — Routinen jeglicher Art.
+- **`const`**, **`let`**, **`var`** auf Top-Level.
+- **Object-Felder** innerhalb eines `type T = object`-Blocks.
+- **Lokale Spec-Bloecke** innerhalb eines `proc`/`func`/`method`-Body —
+  als `members[]`-Eintrag mit `kind: "local"`.
+
+### `kind`-Werte fuer Nim-Symbole
+
+| `kind`       | Symbol-Typ                                        |
+|--------------|----------------------------------------------------|
+| `proc`       | `proc foo(...) = ...`                              |
+| `func`       | `func foo(...): T = ...` (side-effect-frei)        |
+| `method`     | `method foo(...) = ...` (dynamic dispatch)         |
+| `iterator`   | `iterator items(...): T = ...`                     |
+| `template`   | `template foo(...) = ...`                          |
+| `macro`      | `macro foo(...) = ...`                             |
+| `type`       | `type T = ...` allgemein (z.B. Alias `type Id = int`) |
+| `object`     | `type T = object` (mit Feldern)                    |
+| `enum`       | `type T = enum`                                    |
+| `field`      | Feld innerhalb eines `object`-Blocks               |
+| `const`      | `const X = ...`                                    |
+| `let`        | `let X = ...`                                      |
+| `var`        | `var X = ...`                                      |
+| `local`      | Spec-Block innerhalb eines Routine-Body            |
+
+Wir uebernehmen also die Nim-Schluesselwoerter direkt als `kind`-Strings —
+keine Uebersetzung in PHP/JS-Vokabular wie `class`/`function`. Nim hat
+genug semantische Unterscheidungen, dass eine eigene Achse besser passt
+als ein Mapping.
+
+### "Direkt darauffolgend" — praezise
+
+Ein Spec-Block bezieht sich auf das **naechste deklarations-tragende Symbol**
+nach `## @end-spec`. Erlaubt zwischen Spec-Block und Symbol:
+
+- Whitespace (Spaces, Tabs, Zeilenumbrueche) — beliebig viel.
+- Andere `##`-Doc-Kommentare, die **nicht** mit `## @spec` beginnen
+  (regulaere Nim-Doku-Zeilen).
+- Normale `#`-Zeilenkommentare.
+- Block-Kommentare `#[ ... ]#`.
+- Pragmas in der Symbol-Signatur (`{.async.}`, `{.inline.}` etc.) —
+  diese kommen typischerweise NACH dem Symbol-Namen, sind also Teil der
+  Signatur, nicht etwas zwischen Spec und Symbol. Beispiel:
+  `proc foo(): int {.inline.} = ...`.
+
+**Nicht** erlaubt zwischen Spec-Block und Symbol:
+
+- Ein anderes Symbol (Routine, Typ, Variable).
+- Ein anderer `## @spec`-Block ohne dazwischenliegendes Symbol —
+  der erste Block ist dann "dangling".
+
+Wenn nach einem Spec-Block kein Symbol mehr folgt (Datei-Ende, oder nur
+weitere Spec-Bloecke):
+
+- Der Block wird **verworfen**.
+- `warnings[]` bekommt einen Eintrag der Form
+  `"dangling spec at line N"`.
+
+### Indentation-basierte Bloecke
+
+Nim hat keine geschweiften Klammern fuer Bloecke; Block-Grenzen werden
+durch Einrueckung definiert (Off-Side-Regel, wie Python).
+
+V1-Verhalten:
+
+- **Object-Felder**: Nach `type T = object` startet der Felder-Block mit
+  einer hoeheren Einrueckung. Felder werden gesammelt, bis die Einrueckung
+  wieder unter die `object`-Spalten-Tiefe faellt.
+- **Lokale Spec-Bloecke** in einem `proc`-Body werden anhand der
+  Einrueckung erkannt: alles, was mit der Routinen-Body-Einrueckung oder
+  tiefer kommt, gehoert zur Routine. Wir zaehlen Spalten, kein Regex.
+
+### Parser-Strategie
+
+PHP-seitiger State-Machine-Tokenizer (analog M005/0001-Festlegung fuer JS).
+Keine externen Libs, kein Subprozess, **kein Regex** auf Quelltext
+(Decision 0006).
+
+Begruendung:
+
+- Konsistenz mit der bestehenden Sprach-Parser-Architektur — alle Parser
+  laufen im selben PHP-Prozess, kein neuer Laufzeit-Abhaengigkeit.
+- Der noetige Subset (Token-Klassifikation: Comment vs. String vs.
+  Triple-String vs. Raw-String vs. Block-Comment, Top-Level-Symbol-
+  Erkennung, Indent-Tracking) ist klein genug fuer einen handgeschriebenen
+  Tokenizer.
+- Nim-Compiler-API als Backend (Subprozess `nim dump` / `nim doc`) ist
+  ausdruecklich Out-of-Scope (M007/Out-of-scope) und waere eine eigene
+  Decision.
+
+Subset, den V1 NICHT semantisch versteht:
+
+- **Nim-Macros** — Macro-erweiterter Code wird nicht expandiert. V1
+  parst, was im Source steht.
+- **Generische Procs** (`proc foo[T](x: T): T = ...`) — Generics werden
+  tokenmaessig durchgelaufen und als Source-String Teil der Signatur.
+  Keine Type-Inference, keine Constraint-Pruefung.
+
+### Edge-Cases die NICHT als Spec erkannt werden duerfen
+
+- `## @spec`-Text in Strings:
+  - Einzeilige Strings `"..."`.
+  - Triple-Strings `"""..."""`.
+  - Raw-Strings `r"..."`.
+- `## @spec`-Text in Block-Kommentaren `#[ ... ]#` (Nim erlaubt diese
+  zu schachteln; der Tokenizer muss die Tiefe zaehlen).
+
+Der Tokenizer klassifiziert diese Token-Klassen primaer; `## @spec` ist
+**nur** dann ein Marker, wenn das Token vom Tokenizer als
+"Doc-Comment-Zeile" eingestuft wurde — nicht innerhalb von String- oder
+Block-Kommentar-Zustaenden.
+
+### Beispiel-Output (Ziel-Output fuer M007/0002)
+
+Nim-Quelle:
+
+```nim
+## @spec
+## Geometry helpers for 2D points.
+## @end-spec
+
+## @spec
+## A point in the plane.
+## @end-spec
+type
+  Point = object
+    ## @spec
+    ## x coordinate
+    ## @end-spec
+    x: float
+    ## @spec
+    ## y coordinate
+    ## @end-spec
+    y: float
+
+## @spec
+## Distance between two points.
+## both arguments are required
+## returns non-negative float
+## @end-spec
+proc distance(a, b: Point): float =
+  let dx = a.x - b.x
+  let dy = a.y - b.y
+  result = sqrt(dx * dx + dy * dy)
+```
+
+Erwartetes JSON (handgeschrieben):
+
+```json
+{
+  "file": "geometry.nim",
+  "language": "nim",
+  "file_spec": [
+    "Geometry helpers for 2D points."
+  ],
+  "symbols": [
+    {
+      "kind": "object",
+      "name": "Point",
+      "spec": ["A point in the plane."],
+      "members": [
+        {
+          "kind": "field",
+          "name": "x",
+          "type": "float",
+          "spec": ["x coordinate"]
+        },
+        {
+          "kind": "field",
+          "name": "y",
+          "type": "float",
+          "spec": ["y coordinate"]
+        }
+      ]
+    },
+    {
+      "kind": "proc",
+      "name": "distance",
+      "signature": "proc distance(a, b: Point): float",
+      "spec": [
+        "Distance between two points.",
+        "both arguments are required",
+        "returns non-negative float"
+      ],
+      "members": []
+    }
+  ],
+  "warnings": []
+}
+```
 
 ## Ausgabe-Schema
 
@@ -326,7 +556,8 @@ leere Felder). Die Bloecke unten sind die Vorlage fuer M005/0002.
 | `spec_parser.php`  | Sprach-agnostischer Dispatcher. Funktion `spec_parser::parse()`. |
 | `php_parser.php`   | Sprach-Parser fuer `.php`. Stub in M005/0001, gefuellt in M005/0002. |
 | `js_parser.php`    | Sprach-Parser fuer `.js`. Stub in M005/0001, gefuellt in M005/0003. |
-| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie. |
+| `nim_parser.php`   | Sprach-Parser fuer `.nim`. Stub in M007/0001, gefuellt in M007/0002. |
+| `README.md`        | Dieses Dokument — Schema, Aufruf, Dispatch, JS-Strategie, Nim-Strategie. |
 
 Spaeter (M005/0004) kommt `tests/run.php` mit Fixtures dazu;
 M005/0005 verdrahtet `spec_parser::parse()` in `app/file.php`.

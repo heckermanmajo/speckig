@@ -5,7 +5,7 @@ Goal: `// @spec ... // @end-spec`-Bloecke in Nim-Quellcode (Endung `.nim`) werde
 Status: planned
 
 ## Tickets
-- [ ] open/0001-nim-architecture-and-marker.md
+- [x] archive/0001-nim-architecture-and-marker.md
 - [ ] open/0002-nim-parser.md
 - [ ] open/0003-nim-fixture-tests.md
 - [ ] open/0004-nim-ui-dispatch.md

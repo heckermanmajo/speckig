@@ -15,6 +15,7 @@ namespace _share\spec_parser;
 
 require_once __DIR__ . "/php_parser.php";
 require_once __DIR__ . "/js_parser.php";
+require_once __DIR__ . "/nim_parser.php";
 
 // @spec
 // Statisches Funktions-Buendel — kein Zustand, keine Instanz.
@@ -27,7 +28,8 @@ class spec_parser
     // @spec
     // Parst die Datei unter $path und gibt das Schema-Array zurueck.
     // Ausgabe-Schema siehe README.md.
-    // Fuer .php dispatcht an php_parser::parse, fuer .js an js_parser::parse.
+    // Fuer .php dispatcht an php_parser::parse, fuer .js an js_parser::parse,
+    // fuer .nim an nim_parser::parse.
     // Andere Endungen liefern {"error": "unsupported language", ...}.
     // Pfade unter app/_share/vendor/ liefern {"error": "vendor code not parsed", ...}.
     // Wirft keine Exceptions — Fehler stehen im Rueckgabe-Array unter "error".
@@ -58,6 +60,12 @@ class spec_parser
         {
             $result = js_parser::parse($normalized_path);
             return spec_parser::wrap_result($normalized_path, "js", $result);
+        }
+
+        if ($extension === "nim")
+        {
+            $result = nim_parser::parse($normalized_path);
+            return spec_parser::wrap_result($normalized_path, "nim", $result);
         }
 
         return [
