@@ -147,7 +147,8 @@ $language_is_supported_for_spec =
     || $file_extension === "js"
     || $file_extension === "nim"
     || $file_extension === "lua"
-    || $file_extension === "ts";
+    || $file_extension === "ts"
+    || $file_extension === "groovy";
 
 if ($language_is_supported_for_spec)
 {
