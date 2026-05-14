@@ -10,7 +10,7 @@ tmp+rename) und re-rendert die Anzeige; `Cancel` verwirft den
 Buffer. Zusaetzlich gibt es zwei Erzeuger-Aktionen: "neuer Milestone"
 und "neues Ticket in diesem Milestone".
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-cm-vendor.md — CodeMirror 5 vendoren
