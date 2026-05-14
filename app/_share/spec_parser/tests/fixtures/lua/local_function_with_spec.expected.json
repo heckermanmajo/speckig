@@ -1,0 +1,20 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/local_function_with_spec.lua",
+    "language": "lua",
+    "file_spec": [
+        "Fixture for module-local functions: a single local function carrying a spec."
+    ],
+    "symbols": [
+        {
+            "kind": "local-function",
+            "name": "calculate",
+            "signature": "function calculate(a, b)",
+            "spec": [
+                "Sum two integers; returns a + b.",
+                "both arguments are expected to be numbers"
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

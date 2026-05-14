@@ -1,0 +1,21 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/no_spec.lua",
+    "language": "lua",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "local-var",
+            "name": "count",
+            "default": "0",
+            "spec": []
+        },
+        {
+            "kind": "function",
+            "name": "bare_helper",
+            "signature": "function bare_helper(n)",
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

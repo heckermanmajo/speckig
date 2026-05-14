@@ -1,0 +1,22 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/spec_in_long_string.lua",
+    "language": "lua",
+    "file_spec": [
+        "Fixture verifying that -- @spec markers buried inside long-string literals are not parsed as spec blocks."
+    ],
+    "symbols": [
+        {
+            "kind": "local-var",
+            "name": "long",
+            "default": "[[\n-- @spec\n-- not a real spec — this lives inside a long-string literal\n-- @end-spec\n]]",
+            "spec": []
+        },
+        {
+            "kind": "local-var",
+            "name": "lvl",
+            "default": "[==[\n-- @spec\n-- also not a real spec — this is a level-2 long-string [[ ]] inside\n-- @end-spec\n]==]",
+            "spec": []
+        }
+    ],
+    "warnings": []
+}

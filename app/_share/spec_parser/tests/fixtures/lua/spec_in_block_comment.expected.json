@@ -1,0 +1,15 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/spec_in_block_comment.lua",
+    "language": "lua",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "real_function",
+            "signature": "function real_function()",
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

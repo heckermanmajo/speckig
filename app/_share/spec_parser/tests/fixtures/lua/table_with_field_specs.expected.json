@@ -1,0 +1,41 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/table_with_field_specs.lua",
+    "language": "lua",
+    "file_spec": [
+        "Configuration table for the demo: window size and frame budget."
+    ],
+    "symbols": [
+        {
+            "kind": "table",
+            "name": "config",
+            "spec": [],
+            "members": [
+                {
+                    "kind": "field",
+                    "name": "width",
+                    "default": "800",
+                    "spec": [
+                        "window width in pixels"
+                    ]
+                },
+                {
+                    "kind": "field",
+                    "name": "height",
+                    "default": "600",
+                    "spec": [
+                        "window height in pixels"
+                    ]
+                },
+                {
+                    "kind": "field",
+                    "name": "frame_budget",
+                    "default": "0.0166",
+                    "spec": [
+                        "target frame time in seconds; 1/60 for a 60fps cap"
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

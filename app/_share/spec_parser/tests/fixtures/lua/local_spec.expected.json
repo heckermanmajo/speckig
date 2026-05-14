@@ -1,0 +1,27 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/local_spec.lua",
+    "language": "lua",
+    "file_spec": [
+        "Fixture exercising local-spec capture inside a function body."
+    ],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "compute",
+            "signature": "function compute(a, b)",
+            "spec": [
+                "Compute the sum of two integers, clamping negatives to zero before adding."
+            ],
+            "members": [
+                {
+                    "kind": "local",
+                    "name": "local guard: refuse negative i",
+                    "spec": [
+                        "local guard: refuse negative inputs by clamping them to zero"
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

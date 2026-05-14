@@ -3,14 +3,16 @@
 declare(strict_types=1);
 
 // @spec
-// CLI-Test-Runner fuer den Spec-Parser (M005/0004, erweitert in M007/0003).
+// CLI-Test-Runner fuer den Spec-Parser (M005/0004, erweitert in M007/0003
+// und M008/0003).
 // Iteriert ueber app/_share/spec_parser/tests/fixtures/php/*.php,
-// app/_share/spec_parser/tests/fixtures/js/*.js und
-// app/_share/spec_parser/tests/fixtures/nim/*.nim, ruft fuer jede Fixture
+// app/_share/spec_parser/tests/fixtures/js/*.js,
+// app/_share/spec_parser/tests/fixtures/nim/*.nim und
+// app/_share/spec_parser/tests/fixtures/lua/*.lua, ruft fuer jede Fixture
 // spec_parser::parse($path) und vergleicht das Ergebnis per Deep-Compare
 // (json_decode + rekursiv) mit der zugehoerigen <name>.expected.json.
 // Druckt PASS/FAIL pro Fixture und am Ende "X/Y passed" plus eine
-// Pro-Sprache-Zusammenfassung "php: X/Y", "js: X/Y", "nim: X/Y".
+// Pro-Sprache-Zusammenfassung "php: X/Y", "js: X/Y", "nim: X/Y", "lua: X/Y".
 // Zwei Sonder-Tests sind hartkodiert (ohne Fixture-Files):
 //   - Vendor-Blacklist: spec_parser::parse("app/_share/vendor/anything.php")
 //     muss `error: "vendor code not parsed"` liefern.
@@ -41,7 +43,7 @@ $fixture_root = __DIR__ . "/fixtures";
 // @spec
 // Sammelt PASS/FAIL-Zaehler und gibt am Ende die Zusammenfassung aus.
 // Klein gehalten: globaler Zustand reicht fuer einen einzelnen Lauf.
-// $lang_counts speichert pro Sprach-Tag (php/js/nim) ein Tuple
+// $lang_counts speichert pro Sprach-Tag (php/js/nim/lua) ein Tuple
 // [total, passed], damit am Ende eine Pro-Sprache-Zusammenfassung
 // gedruckt werden kann. Synthetische Tests laufen ohne Sprach-Tag.
 // @end-spec
@@ -174,7 +176,7 @@ function encode_for_message($value): string
 // @spec
 // Laeuft eine einzelne Fixture: parsed die Source-Datei, vergleicht mit
 // der zugehoerigen .expected.json, druckt PASS/FAIL und aktualisiert die
-// globalen Zaehler. $language ist ein Tag (z.B. "php"/"js"/"nim"),
+// globalen Zaehler. $language ist ein Tag (z.B. "php"/"js"/"nim"/"lua"),
 // das fuer die Pro-Sprache-Zusammenfassung am Ende benutzt wird.
 // @end-spec
 function run_fixture(string $source_path, string $expected_path, string $language): void
@@ -269,29 +271,34 @@ function run_synthetic(string $name, string $input_path, array $expected_subset)
 }
 
 // @spec
-// Iteriert ueber alle Fixture-Source-Dateien (.php + .js + .nim) im fixture
-// root und ruft fuer jede run_fixture(). Sortiert die Liste, damit die
-// Ausgabe reproduzierbar ist. Pro Sprach-Verzeichnis wird ein Sprach-Tag
-// mitgegeben (php/js/nim) — der landet in der Pro-Sprache-Zusammenfassung.
+// Iteriert ueber alle Fixture-Source-Dateien (.php + .js + .nim + .lua) im
+// fixture root und ruft fuer jede run_fixture(). Sortiert die Liste, damit
+// die Ausgabe reproduzierbar ist. Pro Sprach-Verzeichnis wird ein Sprach-
+// Tag mitgegeben (php/js/nim/lua) — der landet in der Pro-Sprache-
+// Zusammenfassung.
 // @end-spec
 function run_all_fixtures(string $fixture_root): void
 {
     $php_glob = glob($fixture_root . "/php/*.php");
     $js_glob  = glob($fixture_root . "/js/*.js");
     $nim_glob = glob($fixture_root . "/nim/*.nim");
+    $lua_glob = glob($fixture_root . "/lua/*.lua");
 
     if ($php_glob === false) { $php_glob = []; }
     if ($js_glob  === false) { $js_glob  = []; }
     if ($nim_glob === false) { $nim_glob = []; }
+    if ($lua_glob === false) { $lua_glob = []; }
 
     sort($php_glob);
     sort($js_glob);
     sort($nim_glob);
+    sort($lua_glob);
 
     $groups = [
         ["lang" => "php", "ext" => ".php", "files" => $php_glob],
         ["lang" => "js",  "ext" => ".js",  "files" => $js_glob],
         ["lang" => "nim", "ext" => ".nim", "files" => $nim_glob],
+        ["lang" => "lua", "ext" => ".lua", "files" => $lua_glob],
     ];
 
     foreach ($groups as $group)
@@ -365,8 +372,8 @@ echo $passed_count . "/" . $total_count . " passed\n";
 
 if ( ! empty($lang_counts))
 {
-    // Stable order: php, js, nim, then anything else alphabetically.
-    $preferred_order = ["php", "js", "nim"];
+    // Stable order: php, js, nim, lua, then anything else alphabetically.
+    $preferred_order = ["php", "js", "nim", "lua"];
     $printed = [];
     foreach ($preferred_order as $lang)
     {

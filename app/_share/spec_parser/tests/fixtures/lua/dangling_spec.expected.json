@@ -1,0 +1,21 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/dangling_spec.lua",
+    "language": "lua",
+    "file_spec": [
+        "Fixture exercising the dangling-spec warning when a spec block trails the last symbol."
+    ],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "ok",
+            "signature": "function ok()",
+            "spec": [
+                "Returns the constant value 1."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": [
+        "dangling spec at line 12"
+    ]
+}

@@ -1,0 +1,48 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/lua/love2d_callbacks.lua",
+    "language": "lua",
+    "file_spec": [
+        "Love2D demo entry: load assets, advance position, draw the world, react to input."
+    ],
+    "symbols": [
+        {
+            "kind": "method",
+            "name": "love.load",
+            "signature": "function love.load()",
+            "spec": [
+                "Engine entry point. Loads the player sprite once at startup.",
+                "called by Love2D before the first frame"
+            ],
+            "members": []
+        },
+        {
+            "kind": "method",
+            "name": "love.update",
+            "signature": "function love.update(dt)",
+            "spec": [
+                "Advance simulation by dt seconds.",
+                "dt is always > 0 (Love2D guarantees this)"
+            ],
+            "members": []
+        },
+        {
+            "kind": "method",
+            "name": "love.draw",
+            "signature": "function love.draw()",
+            "spec": [
+                "Draw the player sprite at its current position."
+            ],
+            "members": []
+        },
+        {
+            "kind": "method",
+            "name": "love.keypressed",
+            "signature": "function love.keypressed(key)",
+            "spec": [
+                "React to keyboard input; \"escape\" quits the game."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}
