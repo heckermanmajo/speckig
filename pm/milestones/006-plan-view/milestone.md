@@ -5,7 +5,7 @@ Goal: Eine zweite Hauptansicht erreichbar ueber `Plan`-Link im Header. Linker Be
 Status: planned
 
 ## Tickets
-- [ ] open/0001-pm-reader-and-shared-header.md
+- [x] archive/0001-pm-reader-and-shared-header.md
 - [ ] open/0002-plan-page-and-sidebar.md
 - [ ] open/0003-ticket-and-milestone-render.md
 

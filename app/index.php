@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use _share\app;
+use _share\html\header;
 
 include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
 
@@ -205,6 +206,10 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
         header { padding: 0.5rem 1rem; border-bottom: 1px solid #ccc; }
+        .header-nav { display: inline-flex; gap: 0.75rem; margin-right: 1rem; }
+        .header-nav-link { text-decoration: none; color: #333; padding-bottom: 1px; }
+        .header-nav-link:hover { text-decoration: underline; }
+        .header-nav-link.active, .header-nav-link[aria-current="page"] { font-weight: 600; border-bottom: 2px solid #333; }
         main { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 3rem); }
         nav, article { padding: 1rem; overflow: auto; }
         nav { border-right: 1px solid #ccc; }
@@ -239,13 +244,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     </style>
 </head>
 <body>
-<header>
-    <strong>speckig</strong>
-    <?php if ($header_root_label !== "") { ?>
-        · <code><?= app::escape($header_root_label) ?></code>
-    <?php } ?>
-    — <span id="header-path-label"><?= app::escape($header_path_label) ?></span>
-</header>
+<?= header::render("files", $header_path_label, $header_root_label) ?>
 <main>
     <nav><?= $rendered_tree_html ?></nav>
     <article id="content"><p>Datei links auswählen.</p></article>
