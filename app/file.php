@@ -10,10 +10,20 @@ declare(strict_types=1);
 # wird in Ticket 002/0006 konsolidiert. Variablen-Namen sind hier absichtlich
 # 1:1 zu index.php gehalten, damit der Move einfach bleibt.
 #
+# Hinweis: Die Editierbar-Schwarzliste (vendor/.git/spec_parser) lebt doppelt —
+# einmal im POST-Save-Handler, einmal im GET-Pfad fuer das `editable`-Flag.
+# Eine Konsolidierung in einen Helper ist Folge-Ticket; bewusst inline gelassen,
+# um Premature-Abstraktion zu vermeiden (siehe code_style.md).
+#
 # @spec
 # GET  ?path=...                     -> Datei laden, rendern (Markdown via
 #                                       Parsedown, sonst <pre>+escape), plus
 #                                       optionalen spec_parser-Payload.
+#                                       Response enthaelt zusaetzlich `raw`
+#                                       (roher Datei-Inhalt) und `editable`
+#                                       (bool). `editable=false` fuer Pfade
+#                                       in der Schwarzliste (vendor/.git/
+#                                       spec_parser), sonst `true`.
 # POST ?action=save&path=...         -> Body raw in die Datei schreiben.
 #                                       Scope ist SPECKIG_ROOT (alles unter
 #                                       dem Repo-Root). Schwarzliste:
@@ -426,11 +436,32 @@ if ($language_is_supported_for_spec)
     }
 }
 
+# --- editable-Flag (M013/0003) ----------------------------------------------
+# Schwarzliste analog zum Save-Handler oben — bewusste Duplikation, weil die
+# Liste in beiden Codepfaden inline klarer steht als hinter einem Helper.
+# Eine Konsolidierung in einen einzigen Helper ist Folge-Ticket.
+
+$path_is_vendor =
+    str_starts_with($raw_path, "app/_share/vendor/")
+    || str_contains($raw_path, "/app/_share/vendor/");
+
+$path_is_git =
+    str_starts_with($raw_path, ".git/")
+    || str_contains($raw_path, "/.git/");
+
+$path_is_spec_parser =
+    str_starts_with($raw_path, "app/_share/spec_parser/")
+    || str_contains($raw_path, "/app/_share/spec_parser/");
+
+$editable_flag = ! ($path_is_vendor || $path_is_git || $path_is_spec_parser);
+
 # --- success response -------------------------------------------------------
 
 exit(json_encode([
-    "ok"   => true,
-    "path" => $raw_path,
-    "html" => $rendered_html,
-    "spec" => $spec_payload,
+    "ok"       => true,
+    "path"     => $raw_path,
+    "html"     => $rendered_html,
+    "spec"     => $spec_payload,
+    "raw"      => $raw_file_contents,
+    "editable" => $editable_flag,
 ]));

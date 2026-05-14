@@ -34,12 +34,18 @@
 // `what_cond_means`-Pattern, let/const, async/await, defensive
 // try/catch um fetch — Vorbild ist `plan_loader.js`.
 //
-// Endpoint-Vertrag (siehe app/pm.php, M012/0002):
-//   POST /pm.php?action=save&path=<pm/...md>
-//   Body: rohes Markdown (text/plain).
+// Endpoint-Vertrag (siehe app/pm.php, M012/0002 und app/file.php, M013/0001):
+//   save(path) routet nach Pfad-Prefix:
+//     - path.startsWith("pm/")  ->  POST /pm.php?action=save&path=...
+//     - sonst                   ->  POST /file.php?action=save&path=...
+//   Body: roher Datei-Inhalt (text/plain).
 //   Erfolg : HTTP 200 + { ok: true,  path }
 //   Fehler : HTTP 400 + { ok: false, message }
 // save() reicht das Resultat als { ok, message? } an den Aufrufer.
+// Die Routing-Heuristik macht die Plan-/Info-View-Saves (alle Pfade unter
+// `pm/`) weiter ueber pm.php; alle anderen Pfade (Code-Files in der
+// Tree-View) gehen an file.php — das M013/0001-Endpoint mit
+// SPECKIG_ROOT-Scope und der gleichen Schwarzliste wie GET.
 // @end-spec
 
 (function ()
@@ -225,7 +231,16 @@
             return { ok: false, message: "Kein Pfad zum Speichern." };
         }
 
-        let fetch_url = "/pm.php?action=save&path=" + encodeURIComponent(path);
+        // Pfad-Routing: pm/-Pfade gehen weiter an pm.php (M012/0002),
+        // alles andere an file.php (M013/0001). startsWith("pm/") ist
+        // bewusst praefix-exakt — ein Pfad wie "app/pm.php" matched
+        // nicht, was korrekt ist (das ist Code, kein PM-Markdown).
+        let path_is_pm = path.indexOf("pm/") === 0;
+
+        let fetch_url = path_is_pm
+            ? "/pm.php?action=save&path=" + encodeURIComponent(path)
+            : "/file.php?action=save&path=" + encodeURIComponent(path);
+
         let body_text = get_value();
 
         let response = null;

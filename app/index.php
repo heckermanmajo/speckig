@@ -204,6 +204,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>speckig</title>
     <link rel="stylesheet" href="/_share/css/app.css">
+    <link rel="stylesheet" href="/_share/vendor/css/codemirror.css">
 </head>
 <body>
 <?= header::render("files", $header_path_label, $header_root_label) ?>
@@ -213,6 +214,17 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
+<script src="/_share/vendor/js/codemirror.min.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/markdown.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/xml.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/javascript.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/css.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/clike.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/htmlmixed.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/php.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/shell.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/yaml.js"></script>
+<script src="/_share/js/editor.js"></script>
 <script src="/_share/js/content_loader.js"></script>
 </body>
 </html>

@@ -22,7 +22,7 @@ Status: planned
       Files vendoren (`php`, `javascript`, `clike`, `shell`, `css`,
       `xml`, `yaml`) und Extension→Mode-Mapping als JS-Helper in
       `editor.js` ergaenzen. Decision 0007 ergaenzen.
-- [ ] open/0003-edit-mode-tree-view.md — Edit/Save/Cancel-Toolbar im
+- [x] archive/0003-edit-mode-tree-view.md — Edit/Save/Cancel-Toolbar im
       Code-Tab; `<pre>` wird beim Edit gegen CodeMirror-Mount getauscht;
       Mode aus Extension. Toolbar nur sichtbar, wenn der Pfad nicht
       in der Schwarzliste liegt (`raw` im JSON gibt's neu).

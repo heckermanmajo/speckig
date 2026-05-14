@@ -6,13 +6,28 @@
 // Style (Decision 0004): BSD-Klammern, snake_case, `what_cond_means`-Pattern,
 // let/const, async/await, defensive try/catch um fetch (Netzwerk kann wegbrechen).
 //
-// Endpoint-Vertrag (siehe app/file.php, Ticket 002/0004 + 005/0005):
-//   Erfolg : HTTP 200 + { ok: true,  path, html, spec }
+// Endpoint-Vertrag (siehe app/file.php, Ticket 002/0004 + 005/0005 + M013/0003):
+//   Erfolg : HTTP 200 + { ok: true,  path, html, spec, raw, editable }
 //   Fehler : HTTP 400 + { ok: false, message }
 //
 // `spec` ist null fuer nicht-migrierte Dateien (oder Sprachen ohne Parser),
 // sonst das Schema aus app/_share/spec_parser/README.md. Render-Layer:
 // render_spec_view(spec_object) — siehe unten.
+//
+// `raw` traegt den rohen Datei-Inhalt (fuer den Editor-Buffer), `editable`
+// ist false fuer Pfade in der Schwarzliste (vendor/.git/spec_parser).
+//
+// Edit-Flow (M013/0003): nach jedem erfolgreichen Load merken wir `raw`,
+// `path` und `editable` im Modul-State. Wenn `editable=true`, rendert
+// `render_code_toolbar()` eine `.content-toolbar` mit Edit/Save/Cancel-
+// Buttons ans Ende des Code-Tab-Panels. Edit toggelt das `<pre>` gegen
+// einen CodeMirror-Editor (Mode aus Extension via
+// `speckig_editor.extension_to_mode()` aus M013/0002); Save speichert via
+// `speckig_editor.save(current_path)` (M013/0001-Endpoint via Pfad-Routing
+// in editor.js); Cancel verwirft den Buffer und re-loaded den Pfad. Der
+// Spec-Tab bleibt komplett unangetastet — der Edit-Modus lebt nur im
+// Code-Tab. Logik parallel zu plan_loader.js, mit Anpassung an die
+// Tab-Struktur (Toolbar im Code-Panel statt direkt unter dem Article).
 
 (function ()
 {
@@ -21,6 +36,18 @@
     let tree_link_selector     = "nav a[href*=\"?path=\"]";
     let initial_article_html   = "";
     let document_title_base    = "speckig";
+
+    // Edit-Flow-State (M013/0003): roher Datei-Inhalt + Pfad der zuletzt
+    // geladenen Datei, plus `editable`-Flag aus der JSON-Response.
+    // `edit_is_active` togglet die Toolbar-Buttons, ohne dass wir den
+    // DOM-Zustand befragen muessen. `previous_code_pre_html` haelt das
+    // urspruengliche <pre>-Markup fuer Cancel-Restore (aktuell loesen wir
+    // Cancel ueber Re-Load, daher wird der Slot defensiv mitgefuehrt).
+    let current_raw            = "";
+    let current_path           = "";
+    let current_editable       = false;
+    let edit_is_active         = false;
+    let previous_code_pre_html = "";
 
     function get_article_element()
     {
@@ -73,6 +100,14 @@
         article_element.innerHTML = initial_article_html;
         set_header_label("");
         set_document_title("");
+
+        // Edit-State zuruecksetzen: ohne geladenen Pfad gibt es keinen
+        // sinnvollen Save-Target — die Toolbar erscheint auch nicht.
+        current_raw            = "";
+        current_path           = "";
+        current_editable       = false;
+        edit_is_active         = false;
+        previous_code_pre_html = "";
     }
 
     function show_invalid_path_message()
@@ -89,6 +124,12 @@
         article_element.innerHTML = "<p>Ungültiger Pfad.</p>";
         set_header_label("");
         set_document_title("");
+
+        current_raw            = "";
+        current_path           = "";
+        current_editable       = false;
+        edit_is_active         = false;
+        previous_code_pre_html = "";
     }
 
     // --- spec-view rendering (M005/0005) -----------------------------------
@@ -570,6 +611,329 @@
         });
     }
 
+    // --- Edit-Flow (M013/0003) ---------------------------------------------
+    //
+    // Toolbar lebt im Code-Tab-Panel. Edit-Click toggelt das <pre> gegen
+    // einen CodeMirror-Editor und switcht den Tab auf Code (falls Spec
+    // gerade aktiv ist). Save speichert via speckig_editor.save() — das
+    // routet pm/-Pfade weiter an pm.php, alles andere an file.php
+    // (M013/0001). Cancel verwirft den Buffer und re-loaded den Pfad,
+    // damit das <pre> wieder erscheint und der State frisch ist.
+
+    function extract_extension(path)
+    {
+        let path_is_string = typeof path === "string";
+
+        if (! path_is_string)
+        {
+            return "";
+        }
+
+        let last_dot = path.lastIndexOf(".");
+
+        let no_extension = last_dot === -1;
+
+        if (no_extension)
+        {
+            return "";
+        }
+
+        return path.substring(last_dot + 1);
+    }
+
+    function activate_code_tab(article_element)
+    {
+        let buttons = article_element.querySelectorAll(".content-tab-button");
+        let panels  = article_element.querySelectorAll(".content-tab-panel");
+
+        buttons.forEach(function (button_element)
+        {
+            let target_name = button_element.getAttribute("data-target");
+            let is_code     = target_name === "code";
+
+            if (is_code)
+            {
+                button_element.classList.add("active");
+            }
+            else
+            {
+                button_element.classList.remove("active");
+            }
+        });
+
+        panels.forEach(function (panel_element)
+        {
+            let panel_name = panel_element.getAttribute("data-panel");
+            let is_code    = panel_name === "code";
+
+            if (is_code)
+            {
+                panel_element.classList.add("active");
+            }
+            else
+            {
+                panel_element.classList.remove("active");
+            }
+        });
+    }
+
+    function get_code_panel(article_element)
+    {
+        let panel_exists = article_element !== null;
+
+        if (! panel_exists)
+        {
+            return null;
+        }
+
+        return article_element.querySelector(".content-tab-panel[data-panel=\"code\"]");
+    }
+
+    function render_code_toolbar(article_element)
+    {
+        let code_panel = get_code_panel(article_element);
+
+        let panel_exists = code_panel !== null;
+
+        if (! panel_exists)
+        {
+            return;
+        }
+
+        let toolbar = document.createElement("div");
+        toolbar.className = "content-toolbar";
+
+        let btn_edit = document.createElement("button");
+        btn_edit.className   = "btn-edit";
+        btn_edit.textContent = "Edit";
+        btn_edit.addEventListener("click", on_edit_click);
+
+        let btn_save = document.createElement("button");
+        btn_save.className   = "btn-save";
+        btn_save.textContent = "Save";
+        btn_save.hidden      = true;
+        btn_save.addEventListener("click", on_save_click);
+
+        let btn_cancel = document.createElement("button");
+        btn_cancel.className   = "btn-cancel";
+        btn_cancel.textContent = "Cancel";
+        btn_cancel.hidden      = true;
+        btn_cancel.addEventListener("click", on_cancel_click);
+
+        toolbar.appendChild(btn_edit);
+        toolbar.appendChild(btn_save);
+        toolbar.appendChild(btn_cancel);
+
+        code_panel.appendChild(toolbar);
+    }
+
+    function toggle_toolbar_buttons(toolbar_node)
+    {
+        let toolbar_exists = toolbar_node !== null && toolbar_node !== undefined;
+
+        if (! toolbar_exists)
+        {
+            return;
+        }
+
+        let btn_edit   = toolbar_node.querySelector(".btn-edit");
+        let btn_save   = toolbar_node.querySelector(".btn-save");
+        let btn_cancel = toolbar_node.querySelector(".btn-cancel");
+
+        let toolbar_is_complete =
+            btn_edit !== null
+            && btn_save !== null
+            && btn_cancel !== null;
+
+        if (! toolbar_is_complete)
+        {
+            return;
+        }
+
+        btn_edit.hidden   = edit_is_active;
+        btn_save.hidden   = ! edit_is_active;
+        btn_cancel.hidden = ! edit_is_active;
+    }
+
+    function on_edit_click()
+    {
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let editor_is_available =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.mount === "function"
+            && typeof window.speckig_editor.extension_to_mode === "function";
+
+        if (! editor_is_available)
+        {
+            console.warn("content_loader: speckig_editor missing — cannot mount");
+            return;
+        }
+
+        let code_panel   = get_code_panel(article_element);
+        let panel_exists = code_panel !== null;
+
+        if (! panel_exists)
+        {
+            return;
+        }
+
+        let toolbar_node = code_panel.querySelector(".content-toolbar");
+
+        // <pre> wegnehmen, fuer eventuelles Restore merken. Eine eventuell
+        // stehengebliebene Error-Zeile aus dem letzten Save raeumen wir
+        // mit ab — der frische Edit-Modus startet visuell sauber.
+        let existing_pre   = code_panel.querySelector("pre");
+        let existing_error = code_panel.querySelector(".toolbar-error");
+
+        if (existing_pre !== null)
+        {
+            previous_code_pre_html = existing_pre.outerHTML;
+            existing_pre.remove();
+        }
+
+        if (existing_error !== null)
+        {
+            existing_error.remove();
+        }
+
+        // Tab-Switch zu Code, falls Spec gerade aktiv ist.
+        activate_code_tab(article_element);
+
+        // Mount-Container fuer den Editor: leerer div, VOR der Toolbar
+        // eingehaengt, damit Edit/Save/Cancel unter dem Editor bleiben.
+        let mount_div = document.createElement("div");
+        mount_div.className = "editor-mount";
+
+        let toolbar_is_present = toolbar_node !== null;
+
+        if (toolbar_is_present)
+        {
+            code_panel.insertBefore(mount_div, toolbar_node);
+        }
+        else
+        {
+            code_panel.appendChild(mount_div);
+        }
+
+        let extension = extract_extension(current_path);
+        let mode_name = window.speckig_editor.extension_to_mode(extension);
+
+        window.speckig_editor.mount(mount_div, current_raw, current_path, mode_name);
+
+        edit_is_active = true;
+        toggle_toolbar_buttons(toolbar_node);
+    }
+
+    async function on_save_click()
+    {
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let editor_is_available =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.save === "function";
+
+        if (! editor_is_available)
+        {
+            console.warn("content_loader: speckig_editor missing — cannot save");
+            return;
+        }
+
+        let code_panel   = get_code_panel(article_element);
+        let panel_exists = code_panel !== null;
+
+        if (! panel_exists)
+        {
+            return;
+        }
+
+        let toolbar_node = code_panel.querySelector(".content-toolbar");
+
+        let existing_error = code_panel.querySelector(".toolbar-error");
+
+        if (existing_error !== null)
+        {
+            existing_error.remove();
+        }
+
+        let save_result = await window.speckig_editor.save(current_path);
+
+        let save_ok =
+            save_result !== null
+            && save_result !== undefined
+            && save_result.ok === true;
+
+        if (! save_ok)
+        {
+            let server_message =
+                save_result !== null
+                && save_result !== undefined
+                && typeof save_result.message === "string"
+                && save_result.message !== ""
+                    ? save_result.message
+                    : "Speichern fehlgeschlagen.";
+
+            let error_div = document.createElement("div");
+            error_div.className   = "toolbar-error";
+            error_div.textContent = server_message;
+
+            // Error-Zeile direkt ueber der Toolbar einhaengen, damit der
+            // Editor offen bleibt und der Buffer erhalten ist.
+            let toolbar_is_present = toolbar_node !== null;
+
+            if (toolbar_is_present)
+            {
+                code_panel.insertBefore(error_div, toolbar_node);
+            }
+            else
+            {
+                code_panel.appendChild(error_div);
+            }
+            return;
+        }
+
+        let editor_can_be_destroyed =
+            typeof window.speckig_editor.destroy === "function";
+
+        if (editor_can_be_destroyed)
+        {
+            window.speckig_editor.destroy();
+        }
+
+        load_path(current_path, false);
+    }
+
+    function on_cancel_click()
+    {
+        let editor_can_be_destroyed =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.destroy === "function";
+
+        if (editor_can_be_destroyed)
+        {
+            window.speckig_editor.destroy();
+        }
+
+        load_path(current_path, false);
+    }
+
     async function load_path(path, do_push_state)
     {
         let article_element = get_article_element();
@@ -621,11 +985,29 @@
             return;
         }
 
+        // Edit-Flow-State BEVOR DOM-Update setzen, damit eventuelle
+        // Toolbar-Renders danach den korrekten State sehen.
+        let raw_is_string = typeof data.raw === "string";
+
+        current_raw            = raw_is_string ? data.raw : "";
+        current_path           = typeof data.path === "string" && data.path !== "" ? data.path : path;
+        current_editable       = data.editable === true;
+        edit_is_active         = false;
+        previous_code_pre_html = "";
+
         let spec_view_html = render_spec_view(data.spec);
         let spec_view_is_present = spec_view_html !== "";
 
         article_element.innerHTML = render_tabs_shell(spec_view_html, data.html, spec_view_is_present);
         attach_tab_handlers(article_element);
+
+        // Toolbar nur rendern, wenn der Server das File als editierbar
+        // markiert hat (Schwarzliste: vendor/.git/spec_parser).
+        if (current_editable)
+        {
+            render_code_toolbar(article_element);
+        }
+
         set_header_label(path);
         set_document_title(path);
 
