@@ -145,7 +145,8 @@ $spec_payload   = null;
 $language_is_supported_for_spec =
     $file_extension === "php"
     || $file_extension === "js"
-    || $file_extension === "nim";
+    || $file_extension === "nim"
+    || $file_extension === "lua";
 
 if ($language_is_supported_for_spec)
 {
