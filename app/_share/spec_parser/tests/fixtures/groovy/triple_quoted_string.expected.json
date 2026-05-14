@@ -1,0 +1,36 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/triple_quoted_string.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: spec markers inside triple-quoted strings must NOT be parsed."
+    ],
+    "symbols": [
+        {
+            "kind": "script-var",
+            "name": "triple_double",
+            "type": "",
+            "default": "\"\"\"first\n// @spec\n// fake spec inside a triple double-quoted string\n// @end-spec\nlast\"\"\"",
+            "annotations": [],
+            "spec": []
+        },
+        {
+            "kind": "script-var",
+            "name": "triple_single",
+            "type": "",
+            "default": "'''first\n// @spec\n// fake spec inside a triple single-quoted string\n// @end-spec\nlast'''",
+            "annotations": [],
+            "spec": []
+        },
+        {
+            "kind": "script-method",
+            "name": "render",
+            "signature": "def render(String body)",
+            "annotations": [],
+            "spec": [
+                "Real spec for the only declared function in this fixture."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

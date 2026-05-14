@@ -1,0 +1,42 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/no_spec.groovy",
+    "language": "groovy",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Bare",
+            "extends": [],
+            "implements": [],
+            "annotations": [],
+            "spec": [],
+            "members": [
+                {
+                    "kind": "field",
+                    "name": "label",
+                    "type": "String",
+                    "default": "",
+                    "annotations": [],
+                    "spec": []
+                },
+                {
+                    "kind": "property",
+                    "name": "name",
+                    "type": "String",
+                    "default": "",
+                    "annotations": [],
+                    "spec": []
+                },
+                {
+                    "kind": "method",
+                    "name": "greet",
+                    "signature": "String greet(String who)",
+                    "annotations": [],
+                    "spec": [],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

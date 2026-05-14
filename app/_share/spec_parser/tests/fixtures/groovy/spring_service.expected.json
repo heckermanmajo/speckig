@@ -1,0 +1,55 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/spring_service.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: service layer for foo persistence and lookup."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "FooService",
+            "extends": [],
+            "implements": [],
+            "annotations": [
+                {
+                    "name": "Service",
+                    "args_source": null
+                }
+            ],
+            "spec": [
+                "FooService brokers foo lookups against the BarRepo.",
+                "holds no mutable state; safe to inject as a singleton bean"
+            ],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "bar",
+                    "type": "BarRepo",
+                    "default": "",
+                    "annotations": [
+                        {
+                            "name": "Autowired",
+                            "args_source": null
+                        }
+                    ],
+                    "spec": [
+                        "Repository handle injected by Spring at construction time.",
+                        "never null after Spring DI is complete"
+                    ]
+                },
+                {
+                    "kind": "method",
+                    "name": "find",
+                    "signature": "def find(Long id)",
+                    "annotations": [],
+                    "spec": [
+                        "Looks the foo with the given id up via the repository.",
+                        "returns null when no row matches"
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

@@ -1,0 +1,39 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/gstring_interpolation.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: spec markers inside GStrings must NOT be parsed as specs."
+    ],
+    "symbols": [
+        {
+            "kind": "script-var",
+            "name": "fake_inline",
+            "type": "",
+            "default": "\"value=${1 + 1} // @spec\\n// fake spec inside a gstring\\n// @end-spec\"",
+            "annotations": [],
+            "spec": [
+                "Holder script for the fake-spec strings used to check the tokenizer.",
+                "the GString below has // @spec inside ${...} interpolation"
+            ]
+        },
+        {
+            "kind": "script-var",
+            "name": "fake_var",
+            "type": "",
+            "default": "\"name=$user_name // @spec inside a $var GString // @end-spec\"",
+            "annotations": [],
+            "spec": []
+        },
+        {
+            "kind": "script-method",
+            "name": "detect",
+            "signature": "def detect(String input)",
+            "annotations": [],
+            "spec": [
+                "Real spec for the only declared function in this fixture."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

@@ -1,0 +1,23 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/dangling_spec.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec covering the dangling-spec warning case."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Foo",
+            "extends": [],
+            "implements": [],
+            "annotations": [],
+            "spec": [
+                "Real spec for the only declared symbol in this fixture."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": [
+        "dangling spec at line 12"
+    ]
+}

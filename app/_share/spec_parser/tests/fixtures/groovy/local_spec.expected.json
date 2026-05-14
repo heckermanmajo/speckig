@@ -1,0 +1,40 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/local_spec.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec exercising local-spec capture inside a method body."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Compute",
+            "extends": [],
+            "implements": [],
+            "annotations": [],
+            "spec": [
+                "Compute holds a single method with a local spec note inside the body."
+            ],
+            "members": [
+                {
+                    "kind": "method",
+                    "name": "add",
+                    "signature": "int add(int a, int b)",
+                    "annotations": [],
+                    "spec": [
+                        "Sums two integers, clamping negatives to zero before adding."
+                    ],
+                    "members": [
+                        {
+                            "kind": "local",
+                            "name": "local guard: refuse negative i",
+                            "spec": [
+                                "local guard: refuse negative inputs by clamping them to zero"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

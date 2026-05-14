@@ -1,0 +1,52 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/script_top_level.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: bare Groovy script with top-level vars and methods.",
+        "no enclosing class wrapper here"
+    ],
+    "symbols": [
+        {
+            "kind": "script-var",
+            "name": "greeting",
+            "type": "",
+            "default": "\"hello\"",
+            "annotations": [],
+            "spec": [
+                "Greeting prefix used by the script methods below."
+            ]
+        },
+        {
+            "kind": "script-var",
+            "name": "counter",
+            "type": "int",
+            "default": "0",
+            "annotations": [],
+            "spec": [
+                "Counter incremented by repeat() across runs."
+            ]
+        },
+        {
+            "kind": "script-method",
+            "name": "greet",
+            "signature": "def greet(String name)",
+            "annotations": [],
+            "spec": [
+                "Greets the named subject by combining the greeting prefix and the name."
+            ],
+            "members": []
+        },
+        {
+            "kind": "script-method",
+            "name": "repeat",
+            "signature": "def repeat(int delta)",
+            "annotations": [],
+            "spec": [
+                "Increments the script-level counter by the given delta and returns the new value.",
+                "delta may be negative"
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

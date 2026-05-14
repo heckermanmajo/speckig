@@ -7,7 +7,7 @@ Status: planned
 ## Tickets
 - [x] archive/0001-groovy-architecture-and-annotations.md
 - [x] archive/0002-groovy-parser.md
-- [ ] open/0003-groovy-fixture-tests.md
+- [x] archive/0003-groovy-fixture-tests.md
 - [ ] open/0004-groovy-ui-dispatch.md
 
 ## Out of scope

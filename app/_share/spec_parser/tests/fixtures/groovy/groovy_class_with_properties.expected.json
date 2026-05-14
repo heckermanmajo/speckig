@@ -1,0 +1,51 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/groovy_class_with_properties.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: bag with auto-getter/setter property fields."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Person",
+            "extends": [],
+            "implements": [],
+            "annotations": [],
+            "spec": [
+                "Person carries identity-style attributes as Groovy properties.",
+                "each property gets an auto-generated getter/setter pair"
+            ],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "name",
+                    "type": "String",
+                    "default": "",
+                    "annotations": [],
+                    "spec": [
+                        "Display name shown in the UI."
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "age",
+                    "type": "int",
+                    "default": "",
+                    "annotations": [],
+                    "spec": [
+                        "Age in completed years; never negative."
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "email",
+                    "type": "String",
+                    "default": "",
+                    "annotations": [],
+                    "spec": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

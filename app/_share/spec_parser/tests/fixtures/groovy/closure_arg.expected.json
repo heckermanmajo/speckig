@@ -1,0 +1,43 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/closure_arg.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: ensure the tokenizer survives closure-shaped parameter defaults."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Runner",
+            "extends": [],
+            "implements": [],
+            "annotations": [],
+            "spec": [
+                "Runner accepts a closure as parameter; closure body is not analyzed."
+            ],
+            "members": [
+                {
+                    "kind": "method",
+                    "name": "run",
+                    "signature": "void run(Closure cb = { -> println(\"default\") })",
+                    "annotations": [],
+                    "spec": [
+                        "Runs the given closure with no arguments, swallowing any return value.",
+                        "closure body is opaque to the parser"
+                    ],
+                    "members": []
+                },
+                {
+                    "kind": "method",
+                    "name": "run_twice",
+                    "signature": "void run_twice(Closure cb)",
+                    "annotations": [],
+                    "spec": [
+                        "Runs the closure twice in sequence; second call sees the same closure."
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

@@ -1,0 +1,47 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/groovy/spring_rest_controller.groovy",
+    "language": "groovy",
+    "file_spec": [
+        "File-level spec: REST controller surface for the foo resource."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "FooController",
+            "extends": [],
+            "implements": [],
+            "annotations": [
+                {
+                    "name": "RestController",
+                    "args_source": null
+                },
+                {
+                    "name": "RequestMapping",
+                    "args_source": "\"/api\""
+                }
+            ],
+            "spec": [
+                "FooController exposes /api/foo endpoints; mounted under /api."
+            ],
+            "members": [
+                {
+                    "kind": "method",
+                    "name": "listFoos",
+                    "signature": "def listFoos()",
+                    "annotations": [
+                        {
+                            "name": "GetMapping",
+                            "args_source": "\"/foo\""
+                        }
+                    ],
+                    "spec": [
+                        "Lists all known foos for the current tenant.",
+                        "returns an empty list when no foo exists"
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}
