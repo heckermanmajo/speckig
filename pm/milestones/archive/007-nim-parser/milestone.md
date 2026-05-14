@@ -2,13 +2,13 @@
 
 Goal: `// @spec ... // @end-spec`-Bloecke in Nim-Quellcode (Endung `.nim`) werden vom Speckig-Parser extrahiert, gegen das Schema aus M005/0001 gelegt, fixture-getestet und im Frontend ueber `file.php` als Spec-View angezeigt. Sprach-Dispatch in `app/_share/spec_parser/spec_parser.php` wird um Nim erweitert.
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-nim-architecture-and-marker.md
 - [x] archive/0002-nim-parser.md
 - [x] archive/0003-nim-fixture-tests.md
-- [ ] open/0004-nim-ui-dispatch.md
+- [x] archive/0004-nim-ui-dispatch.md
 
 ## Out of scope
 - Andere Sprachen (Lua/Love2D, TS/Angular, Groovy/Spring) — eigene Milestones M008-M010.

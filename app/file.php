@@ -144,7 +144,8 @@ $spec_walker = function (array $symbol_list) use (&$spec_walker): bool
 $spec_payload   = null;
 $language_is_supported_for_spec =
     $file_extension === "php"
-    || $file_extension === "js";
+    || $file_extension === "js"
+    || $file_extension === "nim";
 
 if ($language_is_supported_for_spec)
 {
