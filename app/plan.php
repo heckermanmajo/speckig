@@ -248,6 +248,7 @@ $sidebar_html .= render_bugs_block("Archive", $bugs["archive"], "pm/bugs/archive
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>speckig — plan</title>
     <link rel="stylesheet" href="/_share/css/app.css">
+    <link rel="stylesheet" href="/_share/vendor/css/codemirror.css">
 </head>
 <body>
 <?= header::render("plan", $header_path_label, $header_root_label) ?>
@@ -257,6 +258,9 @@ $sidebar_html .= render_bugs_block("Archive", $bugs["archive"], "pm/bugs/archive
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
+<script src="/_share/vendor/js/codemirror.min.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/markdown.js"></script>
+<script src="/_share/js/editor.js"></script>
 <script src="/_share/js/plan_loader.js"></script>
 </body>
 </html>

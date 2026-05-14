@@ -138,6 +138,7 @@ $sidebar_html .= render_info_section("Terms",     $info_sections["terms"],     "
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>speckig — info</title>
     <link rel="stylesheet" href="/_share/css/app.css">
+    <link rel="stylesheet" href="/_share/vendor/css/codemirror.css">
 </head>
 <body>
 <?= header::render("info", $header_path_label, $header_root_label) ?>
@@ -147,6 +148,9 @@ $sidebar_html .= render_info_section("Terms",     $info_sections["terms"],     "
 </main>
 <script src="/_share/js/helpers.js"></script>
 <script src="/_share/js/tree_collapse.js"></script>
+<script src="/_share/vendor/js/codemirror.min.js"></script>
+<script src="/_share/vendor/js/codemirror-modes/markdown.js"></script>
+<script src="/_share/js/editor.js"></script>
 <script src="/_share/js/plan_loader.js"></script>
 </body>
 </html>

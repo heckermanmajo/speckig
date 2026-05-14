@@ -21,7 +21,7 @@ Status: planned
       `?action=save&path=...` erweitern; Pfad muss mit `pm/` beginnen
       und auf `.md` enden; Schreib atomar via tmp + `rename()`;
       Antwort JSON `{ok, path}` bzw. `{ok:false, message}`.
-- [ ] open/0003-editor-js.md — Neuer Layer `app/_share/js/editor.js`,
+- [x] archive/0003-editor-js.md — Neuer Layer `app/_share/js/editor.js`,
       IIFE im Stil von `plan_loader.js`: `editor::mount(article,
       raw_markdown, path)`, `editor::save(...)`, `editor::cancel(...)`.
       Mode = `markdown`, BSD-Klammern, snake_case.

@@ -42,3 +42,31 @@ aus den Plan-/Info-Loadern — die rufen nur Funktionen aus diesem Layer.
 - Save aus diesem Layer triggern — der Layer bietet `save()` als API,
   aber Aufrufer entscheidet wann.
 - Andere Modes ausser Markdown.
+
+## Done
+- Neue Datei `app/_share/js/editor.js` (IIFE, Spec-Block am Anfang,
+  `window.speckig_editor = { mount, get_value, destroy, save }`).
+  Modul-State `cm_instance`, BSD-Klammern, snake_case,
+  `what_cond_means`-Pattern, async/await + defensive try/catch in
+  `save()` analog zu `plan_loader.js`. `mount()` ruft vor neuer
+  Instanz `destroy()`, mountet `CodeMirror.fromTextArea(...)` mit
+  `mode: "markdown"`, `lineNumbers: true`, `lineWrapping: true`;
+  `path` wird als `data-path` am `<textarea>` gespiegelt.
+- `app/plan.php` und `app/info.php`: zusaetzlicher `<link>` auf
+  `/_share/vendor/css/codemirror.css`, drei `<script>`-Tags VOR
+  `plan_loader.js` in der Reihenfolge `codemirror.min.js` →
+  `codemirror-modes/markdown.js` → `editor.js`.
+- `app/_share/css/app.css`: drei Mini-Regeln fuer `.CodeMirror`
+  (`height: auto; min-height: 60vh; border: 1px solid #ddd;`).
+- Verifikation gegen `php -S 127.0.0.1:8086 -t app`:
+  - `php -l app/plan.php app/info.php` ohne Fehler.
+  - `node --check app/_share/js/editor.js` ohne Fehler (Node v22).
+  - Auf plan.php und info.php je: `editor.js`-Ref = 1, `codemirror.css`
+    = 1, `codemirror.min.js` = 1, `codemirror-modes/markdown.js` = 1.
+  - Tag-Reihenfolge auf beiden Seiten: codemirror.min.js → markdown.js
+    → editor.js → plan_loader.js (per `grep -oE` belegt).
+  - `/_share/js/editor.js` liefert HTTP 200.
+  - `plan.php`, `info.php`, `index.php` weiterhin 200.
+  - M011-Smoketests: info.php hat `data-path="pm/ideas"` (1), plan.php
+    nicht (0).
+- Streu-File-Check sauber: nur kanonisches `./app.sqlite`.
