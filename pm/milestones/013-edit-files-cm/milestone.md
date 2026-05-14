@@ -26,7 +26,7 @@ Status: planned
       Code-Tab; `<pre>` wird beim Edit gegen CodeMirror-Mount getauscht;
       Mode aus Extension. Toolbar nur sichtbar, wenn der Pfad nicht
       in der Schwarzliste liegt (`raw` im JSON gibt's neu).
-- [ ] open/0004-new-file-action.md — Action "+ Datei" pro Tree-Ordner:
+- [x] archive/0004-new-file-action.md — Action "+ Datei" pro Tree-Ordner:
       Inline-Form (Filename), POST `?action=new_file&dir=...`, legt
       leere Datei an, Tree reloaded.
 - [ ] open/0005-delete-file-action.md — "Datei loeschen"-Button neben

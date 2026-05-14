@@ -166,6 +166,30 @@ function render_tree(string $dir_abs, string $rel_prefix): string
         $rendered_html .= \_share\app::escape($sub_dir_name) . "/";
         $rendered_html .= " <span style=\"color:#888\">(" . $visible_child_count . ")</span>";
         $rendered_html .= "</summary>";
+
+        # "+ Datei"-Aktion pro Sub-Dir (M013/0004). Heuristik per
+        # rel_path-Prefix — Schwarzliste lebt JETZT dreifach inline
+        # (file.php Save, file.php new_file, hier). Konsolidierung in
+        # einen Helper ist Folge-Ticket, bewusst inline gehalten.
+        $dir_is_blacklisted =
+            str_starts_with($sub_dir_rel_path, "app/_share/vendor")
+            || str_starts_with($sub_dir_rel_path, ".git")
+            || str_starts_with($sub_dir_rel_path, "app/_share/spec_parser");
+
+        if (! $dir_is_blacklisted)
+        {
+            $escaped_dir = \_share\app::escape($sub_dir_rel_path);
+            $rendered_html .= "<div class=\"tree-action-block\">";
+            $rendered_html .= "<button type=\"button\" class=\"btn-new-file\" data-dir=\"" . $escaped_dir . "\">+ Datei</button>";
+            $rendered_html .= "<form class=\"new-file-form\" data-dir=\"" . $escaped_dir . "\" hidden>";
+            $rendered_html .= "<input type=\"text\" name=\"name\" class=\"input-name\" placeholder=\"Dateiname\" maxlength=\"120\" required>";
+            $rendered_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+            $rendered_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+            $rendered_html .= "<span class=\"form-error\" hidden></span>";
+            $rendered_html .= "</form>";
+            $rendered_html .= "</div>";
+        }
+
         $rendered_html .= render_tree($sub_dir_abs, $sub_dir_rel_prefix);
         $rendered_html .= "</details>";
     }
@@ -209,7 +233,22 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 <body>
 <?= header::render("files", $header_path_label, $header_root_label) ?>
 <main>
-    <nav><?= $rendered_tree_html ?></nav>
+<?php
+# Root-Level "+ Datei"-Aktion (M013/0004). data-dir="" steht fuer den
+# Repo-Root, damit Submit eine Datei direkt unter $speckig_root_abs anlegt.
+# Auch das Repo-Root soll editierbar sein, daher hier ausserhalb von
+# render_tree() platziert (render_tree rendert nur Sub-Dirs).
+$root_action_block_html  = "<div class=\"tree-action-block\">";
+$root_action_block_html .= "<button type=\"button\" class=\"btn-new-file\" data-dir=\"\">+ Datei (Root)</button>";
+$root_action_block_html .= "<form class=\"new-file-form\" data-dir=\"\" hidden>";
+$root_action_block_html .= "<input type=\"text\" name=\"name\" class=\"input-name\" placeholder=\"Dateiname\" maxlength=\"120\" required>";
+$root_action_block_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+$root_action_block_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+$root_action_block_html .= "<span class=\"form-error\" hidden></span>";
+$root_action_block_html .= "</form>";
+$root_action_block_html .= "</div>";
+?>
+    <nav><?= $root_action_block_html ?><?= $rendered_tree_html ?></nav>
     <article id="content"><p>Datei links auswählen.</p></article>
 </main>
 <script src="/_share/js/helpers.js"></script>

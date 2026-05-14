@@ -32,8 +32,14 @@ declare(strict_types=1);
 #                                       (NUL-Byte in den ersten 8 KB), Body
 #                                       max 1 MB. Atomar via tmp+rename. Siehe
 #                                       M013/0001.
+# POST ?action=new_file              -> JSON-Body {dir, name}. Legt eine leere
+#                                       Datei `dir/name` an. `dir === ""` ist
+#                                       Repo-Root. Schwarzliste analog Save.
+#                                       Name-Pattern `[A-Za-z0-9._-]{1,120}`,
+#                                       kein fuehrender Punkt. 409 bei
+#                                       Kollision. Siehe M013/0004.
 # Erfolg : HTTP 200 + JSON (Form je nach Aktion).
-# Fehler : HTTP 400/413/500 + { ok: false, message }.
+# Fehler : HTTP 400/409/413/500 + { ok: false, message }.
 # @end-spec
 
 # --- bootstrap ---
@@ -67,9 +73,10 @@ else
 # Save kommt VOR dem GET-Pfad, damit der bestehende Read-Pfad unangetastet
 # bleibt. Siehe M013/0001.
 
-$method_is_post = $_SERVER["REQUEST_METHOD"] === "POST";
-$action         = isset($_GET["action"]) ? (string) $_GET["action"] : "";
-$action_is_save = $action === "save";
+$method_is_post     = $_SERVER["REQUEST_METHOD"] === "POST";
+$action             = isset($_GET["action"]) ? (string) $_GET["action"] : "";
+$action_is_save     = $action === "save";
+$action_is_new_file = $action === "new_file";
 
 if ($method_is_post && $action_is_save)
 {
@@ -282,6 +289,264 @@ if ($method_is_post && $action_is_save)
         "ok"    => true,
         "path"  => $save_raw_path,
         "bytes" => strlen($body),
+    ]));
+}
+
+# --- Method-Dispatch: POST ?action=new_file ---------------------------------
+# Legt eine leere Datei im angegebenen Repo-Ordner an. Siehe M013/0004.
+#
+# Hinweis: Die Editierbar-Schwarzliste lebt JETZT dreifach inline — Save,
+# GET-editable-Flag, new_file. Konsolidierung in einen Helper ist Folge-
+# Ticket (bewusst inline gehalten, um Premature-Abstraktion zu vermeiden,
+# siehe code_style.md).
+
+if ($method_is_post && $action_is_new_file)
+{
+    // @spec
+    // POST ?action=new_file mit JSON-Body {dir, name} legt eine leere Datei
+    // `<dir>/<name>` an. Vertrag:
+    //   - `dir`: String, kein `..`, kein fuehrender `/`. `dir === ""` meint
+    //     Repo-Root.
+    //   - `dir` muss `is_dir` innerhalb SPECKIG_ROOT sein.
+    //   - Schwarzliste (Prefix + Substring + exakter Match): `app/_share/vendor`,
+    //     `.git`, `app/_share/spec_parser`. Treffer -> 400.
+    //   - `name`: Pattern `[A-Za-z0-9._-]{1,120}`, kein fuehrender Punkt
+    //     (Hidden-Files verbieten), kein Slash, kein `..`.
+    //   - Kollision (`file_exists`) -> 409 `Datei existiert bereits.`.
+    //   - Anlegen via `file_put_contents($target, "")`. Bei false -> 500.
+    //   - Antwort 200 + {ok:true, path:"<dir>/<name>"} bzw. {ok:true,
+    //     path:"<name>"} falls dir leer.
+    //   - Jede Abweisung loggt via `app::error_log()`.
+    // @end-spec
+
+    $nf_body = file_get_contents("php://input");
+
+    $nf_body_read_failed = $nf_body === false;
+
+    if ($nf_body_read_failed)
+    {
+        app::error_log("file.php new_file body read failed");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nf_payload = json_decode($nf_body, true);
+
+    $nf_payload_is_object =
+        is_array($nf_payload)
+        && ! array_is_list($nf_payload);
+
+    if (! $nf_payload_is_object)
+    {
+        app::error_log("file.php new_file body not JSON object");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nf_dir_raw  = isset($nf_payload["dir"])  ? $nf_payload["dir"]  : null;
+    $nf_name_raw = isset($nf_payload["name"]) ? $nf_payload["name"] : null;
+
+    $nf_dir_is_string  = is_string($nf_dir_raw);
+    $nf_name_is_string = is_string($nf_name_raw);
+
+    if (! ($nf_dir_is_string && $nf_name_is_string))
+    {
+        app::error_log("file.php new_file payload missing/typed wrong");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nf_dir  = (string) $nf_dir_raw;
+    $nf_name = (string) $nf_name_raw;
+
+    # --- dir-Validierung ----------------------------------------------------
+    # Leer ist erlaubt (= Repo-Root). Sonst keine Traversal-Bestandteile.
+    $nf_dir_is_empty = $nf_dir === "";
+
+    $nf_dir_string_is_safe =
+        $nf_dir_is_empty
+        || (
+            ! str_contains($nf_dir, "..")
+            && $nf_dir[0] !== "/"
+        );
+
+    if (! $nf_dir_string_is_safe)
+    {
+        app::error_log("file.php new_file rejected dir (string): " . $nf_dir);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Ordner.",
+        ]));
+    }
+
+    # Schwarzliste analog Save-Handler — Prefix UND Substring, plus
+    # exakte Treffer ohne Trailing-Slash (sonst koennte `dir = "app/_share/vendor"`
+    # durchschluepfen, weil die Liste auf `vendor/` endet).
+    $nf_blacklist_with_slash = [
+        "app/_share/vendor/",
+        ".git/",
+        "app/_share/spec_parser/",
+    ];
+
+    $nf_blacklist_exact = [
+        "app/_share/vendor",
+        ".git",
+        "app/_share/spec_parser",
+    ];
+
+    $nf_dir_is_blacklisted = false;
+
+    foreach ($nf_blacklist_with_slash as $bl_entry)
+    {
+        $hits_prefix    = str_starts_with($nf_dir, $bl_entry);
+        $hits_substring = str_contains($nf_dir, $bl_entry);
+
+        if ($hits_prefix || $hits_substring)
+        {
+            $nf_dir_is_blacklisted = true;
+            break;
+        }
+    }
+
+    if (! $nf_dir_is_blacklisted)
+    {
+        foreach ($nf_blacklist_exact as $bl_entry)
+        {
+            if ($nf_dir === $bl_entry)
+            {
+                $nf_dir_is_blacklisted = true;
+                break;
+            }
+        }
+    }
+
+    if ($nf_dir_is_blacklisted)
+    {
+        app::error_log("file.php new_file rejected blacklisted dir: " . $nf_dir);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ordner nicht editierbar.",
+        ]));
+    }
+
+    # dir_abs aufloesen — Sonderfall leere dir == Repo-Root.
+    if ($nf_dir_is_empty)
+    {
+        $nf_dir_abs = $speckig_root_abs;
+    }
+    else
+    {
+        $nf_dir_abs = realpath($speckig_root_abs . "/" . $nf_dir);
+    }
+
+    $nf_dir_resolved =
+        $speckig_root_abs !== false
+        && $nf_dir_abs !== false;
+
+    $nf_dir_is_inside_root =
+        $nf_dir_resolved
+        && (
+            $nf_dir_is_empty
+            || str_starts_with($nf_dir_abs, $speckig_root_abs . DIRECTORY_SEPARATOR)
+        );
+
+    $nf_dir_is_directory =
+        $nf_dir_resolved
+        && is_dir($nf_dir_abs);
+
+    $nf_dir_is_valid =
+        $nf_dir_is_inside_root
+        && $nf_dir_is_directory;
+
+    if (! $nf_dir_is_valid)
+    {
+        app::error_log("file.php new_file rejected dir (fs): " . $nf_dir);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ordner nicht gefunden.",
+        ]));
+    }
+
+    # --- name-Validierung ---------------------------------------------------
+    # Pattern: [A-Za-z0-9._-], 1-120 Zeichen, kein fuehrender Punkt
+    # (Hidden-Files), kein Slash, kein `..`. Wir defensiv pruefen mehrfach,
+    # auch wenn das Regex schon viel davon abdeckt.
+    $nf_name_length      = strlen($nf_name);
+    $nf_name_length_ok   = $nf_name_length >= 1 && $nf_name_length <= 120;
+    $nf_name_charset_ok  = (bool) preg_match('/^[A-Za-z0-9._-]+$/', $nf_name);
+    $nf_name_starts_dot  = $nf_name_length > 0 && $nf_name[0] === ".";
+    $nf_name_has_slash   = str_contains($nf_name, "/");
+    $nf_name_has_dotdot  = str_contains($nf_name, "..");
+
+    $nf_name_is_valid =
+        $nf_name_length_ok
+        && $nf_name_charset_ok
+        && ! $nf_name_starts_dot
+        && ! $nf_name_has_slash
+        && ! $nf_name_has_dotdot;
+
+    if (! $nf_name_is_valid)
+    {
+        app::error_log("file.php new_file rejected name: " . $nf_name);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Dateiname.",
+        ]));
+    }
+
+    # --- Kollisionspruefung -------------------------------------------------
+    $nf_target_abs = $nf_dir_abs . "/" . $nf_name;
+
+    $nf_target_exists = file_exists($nf_target_abs);
+
+    if ($nf_target_exists)
+    {
+        app::error_log("file.php new_file collision: " . $nf_dir . "/" . $nf_name);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Datei existiert bereits.",
+        ]));
+    }
+
+    # --- Anlegen ------------------------------------------------------------
+    $nf_write_result = @file_put_contents($nf_target_abs, "");
+
+    $nf_write_failed = $nf_write_result === false;
+
+    if ($nf_write_failed)
+    {
+        app::error_log("file.php new_file write failed: " . $nf_dir . "/" . $nf_name);
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Anlegen fehlgeschlagen.",
+        ]));
+    }
+
+    $nf_response_path =
+        $nf_dir_is_empty
+            ? $nf_name
+            : ($nf_dir . "/" . $nf_name);
+
+    app::error_log("file.php new_file created: " . $nf_response_path);
+
+    exit(json_encode([
+        "ok"   => true,
+        "path" => $nf_response_path,
     ]));
 }
 

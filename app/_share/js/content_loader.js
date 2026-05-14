@@ -28,6 +28,14 @@
 // Spec-Tab bleibt komplett unangetastet — der Edit-Modus lebt nur im
 // Code-Tab. Logik parallel zu plan_loader.js, mit Anpassung an die
 // Tab-Struktur (Toolbar im Code-Panel statt direkt unter dem Article).
+//
+// New-File-Action (M013/0004): `init_new_file_forms()` haengt Handler an
+// `.btn-new-file` und `.new-file-form` im Tree. Submit POSTet JSON an
+// `/file.php?action=new_file` und reloaded die Seite. Eine Form pro
+// Ordner-`<details>` plus eine fuer Repo-Root (data-dir=""). Selektoren
+// laufen RELATIV zur eigenen Form (`form.querySelector(".form-error")`
+// usw.), damit nichts in die plan_loader-Forms bleedet — `.btn-cancel-form`
+// und `.form-error` existieren in beiden Welten.
 
 (function ()
 {
@@ -1082,6 +1090,242 @@
         show_initial_placeholder();
     }
 
+    // --- New-File-Action (M013/0004) ---------------------------------------
+    //
+    // Pro Ordner-`<details>` im Tree gibt es einen `.btn-new-file` und eine
+    // initial-hidden `.new-file-form`. Beide tragen `data-dir="<rel>"`
+    // (leer = Repo-Root) zum Pairing. Submit POSTet `{dir, name}` an
+    // `/file.php?action=new_file`; bei Erfolg `window.location.reload()`,
+    // sonst `.form-error` im jeweiligen Form fuellen.
+    //
+    // Selektoren laufen RELATIV zur eigenen `.tree-action-block` bzw.
+    // `.new-file-form`, damit wir nicht versehentlich auf die plan_loader-
+    // Forms treffen (`.btn-cancel-form` / `.form-error` existieren dort
+    // identisch).
+
+    function show_new_file_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    function on_new_file_button_click(event)
+    {
+        let button_element = event.currentTarget;
+
+        // Action-Block ist der gemeinsame Wrapper von Button + Form.
+        // closest() laeuft strict vom Button nach oben — Pairing isoliert,
+        // unabhaengig von data-dir-Werten (Root hat data-dir="").
+        let action_block = button_element.closest(".tree-action-block");
+
+        let action_block_exists = action_block !== null;
+
+        if (! action_block_exists)
+        {
+            return;
+        }
+
+        let form_element = action_block.querySelector(".new-file-form");
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let name_input = form_element.querySelector(".input-name");
+
+        let name_input_exists = name_input !== null;
+
+        if (name_input_exists)
+        {
+            name_input.focus();
+        }
+    }
+
+    function on_new_file_cancel_click(event)
+    {
+        let cancel_button = event.currentTarget;
+
+        let form_element = cancel_button.closest(".new-file-form");
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let action_block = form_element.closest(".tree-action-block");
+
+        let action_block_exists = action_block !== null;
+
+        if (! action_block_exists)
+        {
+            return;
+        }
+
+        let button_element = action_block.querySelector(".btn-new-file");
+        let name_input     = form_element.querySelector(".input-name");
+        let error_node     = form_element.querySelector(".form-error");
+
+        if (name_input !== null)
+        {
+            name_input.value = "";
+        }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden = true;
+
+        if (button_element !== null)
+        {
+            button_element.hidden = false;
+        }
+    }
+
+    async function on_new_file_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let dir_value = form_element.getAttribute("data-dir");
+
+        let dir_is_string = typeof dir_value === "string";
+
+        if (! dir_is_string)
+        {
+            show_new_file_error(form_element, "Ordner fehlt.");
+            return;
+        }
+
+        let name_input = form_element.querySelector(".input-name");
+
+        let name_input_exists = name_input !== null;
+
+        if (! name_input_exists)
+        {
+            return;
+        }
+
+        let name_value = name_input.value.trim();
+
+        let name_is_present = name_value !== "";
+
+        if (! name_is_present)
+        {
+            show_new_file_error(form_element, "Dateiname ist Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/file.php?action=new_file",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({
+                        dir:  dir_value,
+                        name: name_value,
+                    }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("content_loader: new_file network error", network_failed);
+            show_new_file_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("content_loader: new_file bad json", json_parse_failed);
+            show_new_file_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true;
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_file_error(form_element, server_message);
+            return;
+        }
+
+        window.location.reload();
+    }
+
+    function init_new_file_forms()
+    {
+        let buttons = document.querySelectorAll(".btn-new-file");
+
+        buttons.forEach(function (button_element)
+        {
+            button_element.addEventListener("click", on_new_file_button_click);
+        });
+
+        let forms = document.querySelectorAll(".new-file-form");
+
+        forms.forEach(function (form_element)
+        {
+            let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+            let cancel_button_exists = cancel_button !== null;
+
+            if (cancel_button_exists)
+            {
+                cancel_button.addEventListener("click", on_new_file_cancel_click);
+            }
+
+            form_element.addEventListener("submit", on_new_file_submit);
+        });
+    }
+
     function init_content_loader()
     {
         let article_element = get_article_element();
@@ -1115,6 +1359,11 @@
             history.replaceState({ path: initial_path }, "", window.location.pathname + window.location.search);
             load_path(initial_path, false);
         }
+
+        // New-File-Forms (M013/0004) — eine pro Ordner-`<details>` im Tree
+        // plus eine fuer den Repo-Root. Self-guarded: no-op, wenn keine
+        // `.btn-new-file` / `.new-file-form` im DOM stehen.
+        init_new_file_forms();
     }
 
     document.addEventListener("DOMContentLoaded", init_content_loader);

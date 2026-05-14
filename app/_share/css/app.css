@@ -149,3 +149,23 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
     gap: 0.5rem;
     margin-top: 0.5rem;
 }
+
+/* Tree "+ Datei"-Aktion (M013/0004). `.form-error` aus M012/0005 wird
+ * via Klassen-Selektor mitgenommen. */
+.tree-action-block
+{
+    margin: 0.25rem 0 0.25rem 1rem;
+}
+
+.btn-new-file
+{
+    font-size: 0.85em;
+}
+
+.new-file-form
+{
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
