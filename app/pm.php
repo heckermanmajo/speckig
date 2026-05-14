@@ -18,6 +18,11 @@ declare(strict_types=1);
 //   - `milestone.md`-Dateien -> Wert der `Status:`-Zeile (via pm_reader)
 //   - sonst leerer String
 //
+// GET-Response-Form (M012/0004):
+//   { ok:true, path, html, status, raw }
+//   `raw` ist das ungerenderte Markdown — so muss der Edit-Flow den
+//   Inhalt nicht separat holen, um den CodeMirror-Buffer zu fuellen.
+//
 // Pfad-Traversal-Schutz (mehrschichtig, identisch fuer GET und POST):
 //   1) `path` darf kein `..` enthalten und nicht mit `/` beginnen.
 //   2) `path` MUSS mit `pm/` beginnen.
@@ -338,4 +343,5 @@ exit(json_encode([
     "path"   => $raw_path,
     "html"   => $rendered_html,
     "status" => $derived_status,
+    "raw"    => $raw_file_contents,
 ]));

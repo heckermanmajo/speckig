@@ -89,3 +89,23 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
     min-height: 60vh;
     border: 1px solid #ddd;
 }
+
+/* Edit-Toolbar (M012/0004): Edit/Save/Cancel rechts unter Content. */
+.content-toolbar
+{
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+.toolbar-error
+{
+    color: #c00;
+    margin-top: 0.75rem;
+}
+
+.editor-mount
+{
+    margin-top: 1rem;
+}

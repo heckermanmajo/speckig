@@ -20,13 +20,24 @@
 // um fetch.
 //
 // Endpoint-Vertrag (siehe app/pm.php):
-//   Erfolg : HTTP 200 + { ok: true,  path, html, status }
+//   Erfolg : HTTP 200 + { ok: true,  path, html, status, raw }
 //   Fehler : HTTP 400 + { ok: false, message }
 //
 // Render-Strategie: data.html ist Parsedown-Output ueber Repo-kontrolliertem
 // Markdown — in V1 setzen wir den HTML-String direkt via innerHTML ein.
 // data.status wird mittels textContent (escape via DOM) geschrieben.
 // Markdown-XSS-Hardening ist out of scope.
+//
+// Edit-Flow (M012/0004): nach jedem erfolgreichen Load merken wir den
+// Rohinhalt (`current_raw`) und den Pfad (`current_path`) im Modul-State.
+// `render_toolbar()` haengt eine `.content-toolbar` mit Edit/Save/Cancel-
+// Buttons unter den Markdown-Body — aber nur, wenn ein Pfad geladen ist
+// UND der Pfad nicht `/archive/` enthaelt (archivierte Tickets sind
+// read-only, siehe milestone.md "Out of scope"). Edit ruft
+// `speckig_editor.mount(mount_div, current_raw, current_path)`; Save
+// `speckig_editor.save(current_path)` + Re-Load; Cancel verwirft den
+// Buffer per `destroy()` + Re-Load. Der Editor-Layer (editor.js) ist
+// fuer DOM-Layout/Buttons nicht zustaendig — das macht alles hier.
 // @end-spec
 
 (function ()
@@ -36,6 +47,13 @@
     let plan_link_selector     = "a.plan-milestone-link, a.plan-ticket-link";
     let document_title_base    = "speckig";
     let initial_article_html   = "";
+
+    // Edit-Flow-State (M012/0004): rohes Markdown + Pfad der zuletzt
+    // geladenen Datei. `edit_is_active` togglet die Toolbar-Buttons,
+    // ohne dass wir den DOM-Zustand befragen muessen.
+    let current_raw       = "";
+    let current_path      = "";
+    let edit_is_active    = false;
 
     function get_article_element()
     {
@@ -89,6 +107,13 @@
         set_header_label("");
         set_document_title("");
         clear_active_link_marker();
+
+        // Edit-State zuruecksetzen: ohne geladenen Pfad gibt es nichts
+        // zu editieren — die Toolbar erscheint dann auch nicht (siehe
+        // render_toolbar Archive-/Empty-Guard).
+        current_raw    = "";
+        current_path   = "";
+        edit_is_active = false;
     }
 
     function show_invalid_path_message()
@@ -105,6 +130,10 @@
         article_element.innerHTML = "<p>Ungültiger Pfad.</p>";
         set_header_label("");
         set_document_title("");
+
+        current_raw    = "";
+        current_path   = "";
+        edit_is_active = false;
     }
 
     function clear_active_link_marker()
@@ -187,6 +216,212 @@
         return header_div;
     }
 
+    // ---- Edit-Toolbar (M012/0004) -----------------------------------------
+    // Haengt Edit/Save/Cancel an article#content, falls ein Pfad geladen
+    // ist und der Pfad nicht unter `/archive/` liegt. Archive-Tickets
+    // bleiben read-only — die Toolbar wird in dem Fall gar nicht gerendert,
+    // statt nur den Edit-Button auszublenden.
+
+    function render_toolbar(article_element)
+    {
+        let path_is_archive = current_path.indexOf("/archive/") !== -1;
+        let path_is_present = current_path !== "";
+
+        let edit_is_allowed = path_is_present && ! path_is_archive;
+
+        if (! edit_is_allowed)
+        {
+            return;
+        }
+
+        let toolbar = document.createElement("div");
+        toolbar.className = "content-toolbar";
+
+        let btn_edit = document.createElement("button");
+        btn_edit.className   = "btn-edit";
+        btn_edit.textContent = "Edit";
+        btn_edit.addEventListener("click", on_edit_click);
+
+        let btn_save = document.createElement("button");
+        btn_save.className   = "btn-save";
+        btn_save.textContent = "Save";
+        btn_save.hidden      = true;
+        btn_save.addEventListener("click", on_save_click);
+
+        let btn_cancel = document.createElement("button");
+        btn_cancel.className   = "btn-cancel";
+        btn_cancel.textContent = "Cancel";
+        btn_cancel.hidden      = true;
+        btn_cancel.addEventListener("click", on_cancel_click);
+
+        toolbar.appendChild(btn_edit);
+        toolbar.appendChild(btn_save);
+        toolbar.appendChild(btn_cancel);
+
+        article_element.appendChild(toolbar);
+    }
+
+    function toggle_toolbar_buttons()
+    {
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let btn_edit   = article_element.querySelector(".btn-edit");
+        let btn_save   = article_element.querySelector(".btn-save");
+        let btn_cancel = article_element.querySelector(".btn-cancel");
+
+        let toolbar_is_complete =
+            btn_edit !== null
+            && btn_save !== null
+            && btn_cancel !== null;
+
+        if (! toolbar_is_complete)
+        {
+            return;
+        }
+
+        btn_edit.hidden   = edit_is_active;
+        btn_save.hidden   = ! edit_is_active;
+        btn_cancel.hidden = ! edit_is_active;
+    }
+
+    function on_edit_click()
+    {
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let editor_is_available =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.mount === "function";
+
+        if (! editor_is_available)
+        {
+            console.warn("plan_loader: speckig_editor missing — cannot mount");
+            return;
+        }
+
+        // Status-Header + Markdown-Body raeumen, Toolbar belassen.
+        // Eine eventuell stehengebliebene Error-Zeile aus dem letzten
+        // Save-Versuch raeumen wir mit ab, damit der frische Edit-Modus
+        // visuell sauber startet.
+        let markdown_node = article_element.querySelector(".plan-markdown");
+        let status_node   = article_element.querySelector(".plan-status-header");
+        let toolbar_node  = article_element.querySelector(".content-toolbar");
+        let error_node    = article_element.querySelector(".toolbar-error");
+
+        if (markdown_node !== null) { markdown_node.remove(); }
+        if (status_node !== null)   { status_node.remove();   }
+        if (error_node !== null)    { error_node.remove();    }
+
+        // Mount-Container fuer den Editor: leerer div, eingehaengt VOR
+        // der Toolbar, damit Edit/Save/Cancel unter dem Editor bleiben.
+        let mount_div = document.createElement("div");
+        mount_div.className = "editor-mount";
+        article_element.insertBefore(mount_div, toolbar_node);
+
+        window.speckig_editor.mount(mount_div, current_raw, current_path);
+
+        edit_is_active = true;
+        toggle_toolbar_buttons();
+    }
+
+    async function on_save_click()
+    {
+        let article_element = get_article_element();
+
+        let article_exists = article_element !== null;
+
+        if (! article_exists)
+        {
+            return;
+        }
+
+        let editor_is_available =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.save === "function";
+
+        if (! editor_is_available)
+        {
+            console.warn("plan_loader: speckig_editor missing — cannot save");
+            return;
+        }
+
+        let toolbar_node = article_element.querySelector(".content-toolbar");
+
+        let existing_error = article_element.querySelector(".toolbar-error");
+
+        if (existing_error !== null)
+        {
+            existing_error.remove();
+        }
+
+        let save_result = await window.speckig_editor.save(current_path);
+
+        let save_ok = save_result !== null && save_result !== undefined && save_result.ok === true;
+
+        if (! save_ok)
+        {
+            let server_message =
+                save_result !== null
+                && save_result !== undefined
+                && typeof save_result.message === "string"
+                && save_result.message !== ""
+                    ? save_result.message
+                    : "Speichern fehlgeschlagen.";
+
+            let error_div = document.createElement("div");
+            error_div.className   = "toolbar-error";
+            error_div.textContent = server_message;
+
+            // Error-Zeile direkt ueber der Toolbar einhaengen, damit sie
+            // im Edit-Modus sichtbar bleibt und der Editor offen
+            // bleibt — der User hat den Puffer noch im Buffer.
+            let toolbar_is_present = toolbar_node !== null;
+
+            if (toolbar_is_present)
+            {
+                article_element.insertBefore(error_div, toolbar_node);
+            }
+            else
+            {
+                article_element.appendChild(error_div);
+            }
+            return;
+        }
+
+        window.speckig_editor.destroy();
+        load_plan_path(current_path, false);
+    }
+
+    function on_cancel_click()
+    {
+        let editor_can_be_destroyed =
+            window.speckig_editor !== undefined
+            && window.speckig_editor !== null
+            && typeof window.speckig_editor.destroy === "function";
+
+        if (editor_can_be_destroyed)
+        {
+            window.speckig_editor.destroy();
+        }
+
+        load_plan_path(current_path, false);
+    }
+
     async function load_plan_path(path, do_push_state)
     {
         let article_element = get_article_element();
@@ -238,6 +473,15 @@
             return;
         }
 
+        // Edit-Flow-State aktualisieren BEVOR wir die Toolbar rendern.
+        // `data.raw` kommt aus pm.php seit M012/0004; ein leerer String
+        // ist ein gueltiger Fallback fuer alte Antworten.
+        let raw_is_string = typeof data.raw === "string";
+
+        current_raw    = raw_is_string ? data.raw : "";
+        current_path   = typeof data.path === "string" && data.path !== "" ? data.path : path;
+        edit_is_active = false;
+
         // Markdown-Body als Wrapper-div mit innerHTML (Parsedown-Output,
         // Repo-kontrolliert). Status-Header per DOM-API mit textContent
         // (sicher escaped).
@@ -258,6 +502,11 @@
         }
 
         article_element.appendChild(markdown_div);
+
+        // Toolbar zuletzt anhaengen — sie sitzt unter dem Markdown-Body
+        // im rechten Content-Panel. render_toolbar() entscheidet selbst,
+        // ob die Toolbar angezeigt wird (Archive-Guard).
+        render_toolbar(article_element);
 
         set_header_label(path);
         set_document_title(path);

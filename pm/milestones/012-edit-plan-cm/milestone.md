@@ -25,7 +25,7 @@ Status: planned
       IIFE im Stil von `plan_loader.js`: `editor::mount(article,
       raw_markdown, path)`, `editor::save(...)`, `editor::cancel(...)`.
       Mode = `markdown`, BSD-Klammern, snake_case.
-- [ ] open/0004-plan-edit-button.md — Edit/Save/Cancel-Buttons im
+- [x] archive/0004-plan-edit-button.md — Edit/Save/Cancel-Buttons im
       Content-Panel von `plan.php` (und automatisch auch in `info.php`,
       weil derselbe Loader laeuft), nur sichtbar wenn ein Pfad geladen
       ist und nicht unter `archive/`. Plan-Loader holt vor dem Render
