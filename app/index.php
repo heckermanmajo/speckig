@@ -203,45 +203,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>speckig</title>
-    <style>
-        body { margin: 0; font-family: system-ui, sans-serif; }
-        header { padding: 0.5rem 1rem; border-bottom: 1px solid #ccc; }
-        .header-nav { display: inline-flex; gap: 0.75rem; margin-right: 1rem; }
-        .header-nav-link { text-decoration: none; color: #333; padding-bottom: 1px; }
-        .header-nav-link:hover { text-decoration: underline; }
-        .header-nav-link.active, .header-nav-link[aria-current="page"] { font-weight: 600; border-bottom: 2px solid #333; }
-        main { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 3rem); }
-        nav, article { padding: 1rem; overflow: auto; }
-        nav { border-right: 1px solid #ccc; }
-        nav > a, nav details > a { display: block; }
-        nav details > details, nav details > a { margin-left: 1.25rem; }
-        nav summary { cursor: pointer; }
-        nav a { text-decoration: none; cursor: pointer; }
-        nav a:hover { text-decoration: underline; }
-        article pre { white-space: pre-wrap; word-wrap: break-word; }
-
-        /* spec-view: Inhalt des Spec-Tabs. Aufklappen erledigt der Tab-Switcher. */
-        .spec-view { padding: 0.5rem 0.25rem; }
-        .spec-view-file-spec { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #ddd; }
-        .spec-view-symbols, .spec-view-members { list-style: none; padding-left: 0; margin: 0; }
-        .spec-view-members { margin-left: 1rem; padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-top: 0.5rem; }
-        .spec-view-symbol { margin: 0.5rem 0; }
-        .spec-view-signature { display: block; font-family: ui-monospace, monospace; font-size: 0.9rem; color: #1a1a1a; padding: 0.15rem 0; }
-        .spec-view-spec-line { margin: 0.15rem 0 0.25rem 0.5rem; color: #444; font-size: 0.92rem; }
-        .spec-view-warnings { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed #ddd; }
-        .spec-view-warning { margin: 0.15rem 0; color: #884; font-size: 0.88rem; }
-
-        /* content tabs (Spec / Code switcher im rechten Panel). */
-        .content-tabs { display: flex; flex-direction: column; }
-        .content-tab-bar { display: flex; gap: 0.25rem; border-bottom: 1px solid #ccc; margin-bottom: 0.75rem; }
-        .content-tab-button { background: #f0f0f0; border: 1px solid #ccc; border-bottom: none; padding: 0.4rem 0.9rem; font: inherit; cursor: pointer; border-radius: 4px 4px 0 0; color: #333; }
-        .content-tab-button:hover:not(.disabled):not(.active) { background: #e8e8e8; }
-        .content-tab-button.active { background: #fff; border-bottom: 1px solid #fff; margin-bottom: -1px; font-weight: 600; }
-        .content-tab-button.disabled { color: #aaa; cursor: not-allowed; background: #f7f7f7; }
-        .content-tab-panel { display: none; }
-        .content-tab-panel.active { display: block; }
-        .content-tab-empty { color: #888; font-style: italic; }
-    </style>
+    <link rel="stylesheet" href="/_share/css/app.css">
 </head>
 <body>
 <?= header::render("files", $header_path_label, $header_root_label) ?>

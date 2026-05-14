@@ -6,7 +6,7 @@ Status: planned
 
 ## Tickets
 - [x] archive/0001-pm-reader-and-shared-header.md
-- [ ] open/0002-plan-page-and-sidebar.md
+- [x] archive/0002-plan-page-and-sidebar.md
 - [ ] open/0003-ticket-and-milestone-render.md
 
 ## Out of scope
