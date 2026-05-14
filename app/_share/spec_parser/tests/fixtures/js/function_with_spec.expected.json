@@ -1,0 +1,21 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/js/function_with_spec.js",
+    "language": "js",
+    "file_spec": [
+        "File-level spec for the JS fixture: a single top-level function with a multi-line spec block."
+    ],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "build_page_title",
+            "signature": "function build_page_title(raw_path, fallback)",
+            "spec": [
+                "Compute a normalised page title for the speckig file viewer.",
+                "trims surrounding whitespace",
+                "returns the fallback string when the input is empty"
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

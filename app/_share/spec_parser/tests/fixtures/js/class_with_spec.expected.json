@@ -1,0 +1,47 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/js/class_with_spec.js",
+    "language": "js",
+    "file_spec": [
+        "File-level spec: a single class extending Widget with two fields and a render method."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "TreeNode",
+            "extends": [
+                "Widget"
+            ],
+            "spec": [
+                "Renders a tree node label with optional child counts."
+            ],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "label",
+                    "default": "\"\"",
+                    "spec": [
+                        "display label, never empty after trim"
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "child_count",
+                    "default": "0",
+                    "spec": [
+                        "count of direct children, always >= 0"
+                    ]
+                },
+                {
+                    "kind": "method",
+                    "name": "render",
+                    "signature": "render(prefix)",
+                    "spec": [
+                        "Build the DOM string for this node, including the child-count badge."
+                    ],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

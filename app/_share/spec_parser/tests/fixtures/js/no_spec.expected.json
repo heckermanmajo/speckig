@@ -1,0 +1,36 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/js/no_spec.js",
+    "language": "js",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "function",
+            "name": "bare_helper",
+            "signature": "function bare_helper(count)",
+            "spec": [],
+            "members": []
+        },
+        {
+            "kind": "class",
+            "name": "BareWidget",
+            "extends": [],
+            "spec": [],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "label",
+                    "default": "\"\"",
+                    "spec": []
+                },
+                {
+                    "kind": "method",
+                    "name": "render",
+                    "signature": "render()",
+                    "spec": [],
+                    "members": []
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

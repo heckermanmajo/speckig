@@ -1,0 +1,48 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/php/class_with_fields.php",
+    "language": "php",
+    "file_spec": [
+        "Pilot-style data class fixture: file-spec plus three typed properties, each with its own spec line."
+    ],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Product",
+            "extends": [],
+            "implements": [],
+            "spec": [
+                "Demo product row used for parser fixture tests; structurally mirrors User.php."
+            ],
+            "members": [
+                {
+                    "kind": "property",
+                    "name": "title",
+                    "type": "string",
+                    "default": "\"\"",
+                    "spec": [
+                        "product display name, 1..200 chars"
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "price_cents",
+                    "type": "int",
+                    "default": "0",
+                    "spec": [
+                        "price in cents, non-negative"
+                    ]
+                },
+                {
+                    "kind": "property",
+                    "name": "is_published",
+                    "type": "bool",
+                    "default": "false",
+                    "spec": [
+                        "true once the product has been published to the public catalog"
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

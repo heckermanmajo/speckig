@@ -1,0 +1,18 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/php/dangling_spec.php",
+    "language": "php",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Foo",
+            "extends": [],
+            "implements": [],
+            "spec": [],
+            "members": []
+        }
+    ],
+    "warnings": [
+        "dangling spec at line 9"
+    ]
+}

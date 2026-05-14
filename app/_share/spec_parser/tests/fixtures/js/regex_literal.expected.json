@@ -1,0 +1,43 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/js/regex_literal.js",
+    "language": "js",
+    "file_spec": [
+        "File-level spec: tokenizer must ignore @spec markers inside regex, string and template literals."
+    ],
+    "symbols": [
+        {
+            "kind": "let",
+            "name": "pattern",
+            "default": "/\\/\\/ @spec[\\s\\S]*?\\/\\/ @end-spec/",
+            "spec": []
+        },
+        {
+            "kind": "let",
+            "name": "single_string",
+            "default": "'// @spec fake inside single-quoted string // @end-spec'",
+            "spec": []
+        },
+        {
+            "kind": "let",
+            "name": "double_string",
+            "default": "\"// @spec fake inside double-quoted string // @end-spec\"",
+            "spec": []
+        },
+        {
+            "kind": "let",
+            "name": "template",
+            "default": "`// @spec\n// fake spec inside template literal\n// @end-spec`",
+            "spec": []
+        },
+        {
+            "kind": "function",
+            "name": "detect_marker",
+            "signature": "function detect_marker(input)",
+            "spec": [
+                "Real spec for the only declared function in this fixture."
+            ],
+            "members": []
+        }
+    ],
+    "warnings": []
+}

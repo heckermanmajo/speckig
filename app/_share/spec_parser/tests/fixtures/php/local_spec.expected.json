@@ -1,0 +1,32 @@
+{
+    "file": "app/_share/spec_parser/tests/fixtures/php/local_spec.php",
+    "language": "php",
+    "file_spec": [],
+    "symbols": [
+        {
+            "kind": "class",
+            "name": "Calculator",
+            "extends": [],
+            "implements": [],
+            "spec": [],
+            "members": [
+                {
+                    "kind": "method",
+                    "name": "compute",
+                    "signature": "public function compute(int $a, int $b): int",
+                    "spec": [],
+                    "members": [
+                        {
+                            "kind": "local",
+                            "name": "local guard: refuse negative i",
+                            "spec": [
+                                "local guard: refuse negative inputs by clamping them to zero"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "warnings": []
+}

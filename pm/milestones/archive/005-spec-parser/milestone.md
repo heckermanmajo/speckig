@@ -2,13 +2,13 @@
 
 Goal: Spec-Bloecke (`// @spec ... // @end-spec`) in PHP- und JS-Dateien werden von einem echten Parser pro Sprache (kein Regex, siehe Decision 0006) extrahiert, gemeinsam mit Signatur/Typ aus dem Code in ein einheitliches JSON-Schema gegossen, fixture-getestet, und im Speckig-Frontend (`file.php`-Renderkette) ueber dem Datei-Inhalt als Spec-View angezeigt. Loest die alte `.spec`-Datei-Anzeige fuer Dateien, die schon migriert sind.
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-parser-architecture-and-schema.md
 - [x] archive/0002-php-parser.md
 - [x] archive/0003-js-parser.md
-- [ ] open/0004-parser-fixture-tests.md
+- [x] archive/0004-parser-fixture-tests.md
 - [x] archive/0005-ui-spec-view-in-file-render.md
 
 ## Out of scope
