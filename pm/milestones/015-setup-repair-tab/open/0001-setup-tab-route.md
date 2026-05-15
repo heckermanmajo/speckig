@@ -34,3 +34,44 @@ und die Seite rendert leer (Inhalt kommt aus den naechsten Tickets).
 - Inhalts-Design der Seite — Skelett reicht.
 
 See: pm/how-to/code_style.md
+
+## Plan
+- **Entry-File**: neues `app/setup.php` anlegen, Struktur 1:1 wie
+  `app/info.php` — `<?php`-Header, Spec-Block, `use _share\app;
+  _share\html\header;`, `init.php`-Include, Repo-Root-Resolution,
+  `header::render("setup", ...)` aufrufen, dann ein minimaler
+  `<article id="content">`-Container mit Placeholder-Text. Sidebar
+  bleibt fuer 0001 leer (kommt in 0002).
+- **Header erweitern**: `app/_share/html/header.php`:
+  - In `render()` neuen Block:
+    `$setup_is_active = $active_view === "setup";`
+    `$setup_link_attrs = header::build_nav_link_attrs($setup_is_active);`
+  - Im HTML-String anhaengen: `<a href="/setup.php" ...>Setup / Repair</a>`
+    nach dem Info-Link.
+  - Spec-Block oben anpassen: `$active_view` akzeptiert jetzt auch
+    `"setup"`.
+- **Active-View-Strenge**: bestehende Routen (`index.php`, `plan.php`,
+  `info.php`) bleiben unveraendert. Sie geben weiterhin ihren eigenen
+  active-View-String mit, der Header faellt nie auf einen Default
+  zurueck.
+- **CSS**: `app/_share/css/app.css` — neuer Tab passt automatisch in
+  die `.header-nav`-Liste; keine Aenderung noetig.
+- **Files touched**: `app/setup.php` (neu), `app/_share/html/header.php`.
+
+## Verifikation
+- `php -l app/setup.php app/_share/html/header.php` clean.
+- Server `php -S 127.0.0.1:8086 -t app` run_in_background.
+- `curl -s http://127.0.0.1:8086/setup.php` → 200, HTML enthaelt
+  Header mit allen 4 Tabs, `Setup / Repair` hat `aria-current="page"`.
+- `curl -s http://127.0.0.1:8086/index.php | grep -c 'href="/setup.php"'`
+  → 1 (Header zeigt 4 Tabs).
+- Browser: Klick auf "Setup / Repair" navigiert auf setup.php, Tab
+  ist optisch aktiv.
+- Klick auf andere Tabs funktioniert weiter, Setup-Tab ist dort nicht
+  aktiv.
+- `git status` clean.
+
+## Out of scope (Plan)
+- Inhalt der Setup-Seite (0002/0003).
+- JS-Loader fuer Setup (kommt erst, wenn dynamische Re-Runs noetig
+  werden).
