@@ -28,9 +28,11 @@ declare(strict_types=1);
 // hier eingehaengt; an `run()` selbst muss niemand mehr schrauben.
 //
 // Baseline-Checks (M015/0003): PHP-Version, SPECKIG_ROOT, Repo-Pfad,
-// DB-Datei, how-to-Files, Vendor-Files. Alle Repair-Wiring ist
-// out-of-scope hier — `can_repair: false` bei allen. Wiring kommt in
-// 0004, der Hash-Vergleich gegen die Baseline in 0005.
+// DB-Datei, how-to-Files, Vendor-Files. Wiring fuer Repair-Buttons
+// kommt in 0004; der Hash-Vergleich gegen die Baseline in 0005
+// ersetzt `check_howto_files` durch `check_howto_baseline` und
+// liefert pro fehlender how-to-Datei eine konkrete `restore_how_to:
+// <name>`-Repair-Action.
 // @end-spec
 
 namespace _share;
@@ -54,22 +56,25 @@ class setup_checks
     // Reihenfolge in dieser Liste = Reihenfolge in der UI-Tabelle.
     // @end-spec
     const CHECKS = [
-        ["php_version",  "PHP-Version >= 8.5",   [self::class, "check_php_version"]],
-        ["speckig_root", "SPECKIG_ROOT gesetzt", [self::class, "check_speckig_root"]],
-        ["repo_path",    "Repo-Pfad erreichbar", [self::class, "check_repo_path"]],
-        ["db_file",      "DB-Datei am kanonischen Ort", [self::class, "check_db_file"]],
-        ["howto_files",  "pm/how-to-Files vorhanden",   [self::class, "check_howto_files"]],
-        ["vendor_files", "Vendor-Files vorhanden",      [self::class, "check_vendor_files"]],
+        ["php_version",    "PHP-Version >= 8.5",   [self::class, "check_php_version"]],
+        ["speckig_root",   "SPECKIG_ROOT gesetzt", [self::class, "check_speckig_root"]],
+        ["repo_path",      "Repo-Pfad erreichbar", [self::class, "check_repo_path"]],
+        ["db_file",        "DB-Datei am kanonischen Ort",   [self::class, "check_db_file"]],
+        ["howto_baseline", "pm/how-to-Files vs Baseline",   [self::class, "check_howto_baseline"]],
+        ["vendor_files",   "Vendor-Files vorhanden",        [self::class, "check_vendor_files"]],
     ];
 
     // @spec
-    // Erwartete pm/how-to/*.md-Files (M015/0003).
+    // Erwartete pm/how-to/*.md-Files (M015/0003, erweitert in 0005).
     //
     // Hart kodiert nach `ls pm/how-to/` zum Implementierungszeitpunkt.
-    // Hash-Vergleich gegen eine Referenz-Baseline kommt in 0005 — hier
-    // wird **nur Existenz** geprueft. Aenderungen an der Liste (neue
-    // how-to-Files, Renames) gehen hier rein; ein fehlender oder neuer
-    // Eintrag schlaegt sich direkt im Check-Status nieder.
+    // Seit M015/0005 ist die Liste auch der Index, ueber den
+    // `check_howto_baseline()` das Baseline-Bundle unter
+    // `app/_share/setup/howto-baseline/` mit den Live-Files vergleicht
+    // (Existenz + SHA-256). Aenderungen an der Liste (neue how-to-Files,
+    // Renames) gehen hier rein UND brauchen einen passenden Baseline-
+    // Eintrag plus REPAIR_IDS-Eintrag in `setup.php` (Decision 0008:
+    // Bundle wird per Hand fortgeschrieben).
     // @end-spec
     const HOWTO_FILES = [
         "at-bot.md",
@@ -482,21 +487,45 @@ class setup_checks
     }
 
     // @spec
-    // check_howto_files(): array
+    // check_howto_baseline(): array
     //
-    // Vertrag: jede Datei in `setup_checks::HOWTO_FILES` existiert
-    // unter `<repo>/pm/how-to/<name>`.
-    //   - status=ok   → alle Files vorhanden.
-    //   - status=fail → mindestens eines fehlt. Hint listet die
-    //     fehlenden Namen (kein Pfad — der ist immer `pm/how-to/`).
-    //     `fail`, nicht `warn`: how-to-Files sind verbindliche
-    //     Konventions-Doku, ohne sie kippt der Process.
-    // Hash-Vergleich gegen eine Referenz-Baseline kommt in 0005, hier
-    // nur Existenz.
+    // Vergleicht jede Datei in `setup_checks::HOWTO_FILES` gegen das
+    // versionierte Baseline-Bundle unter
+    // `<repo>/app/_share/setup/howto-baseline/<name>` (Decision 0008).
+    //
+    // Pro Datei drei moegliche Befunde:
+    //   - Live-Datei `pm/how-to/<name>` fehlt -> `missing`.
+    //   - Live existiert, SHA-256 ungleich Baseline -> `drift`.
+    //   - Inhalte identisch -> `ok`.
+    //
+    // Aggregation in ein einziges Result (Schema-Konstanz, siehe
+    // File-Header-Spec):
+    //   - Alle ok -> status=ok, Hint nennt die Anzahl verglichener Files.
+    //   - Mind. ein `missing` (egal ob auch Drift vorhanden) ->
+    //     status=fail. Hint listet erst die fehlenden, dann (falls auch
+    //     Drift vorliegt) die abweichenden Files. `can_repair=true`,
+    //     `repair_action="restore_how_to:<name>"` zeigt **das erste**
+    //     fehlende File — die Setup-View bietet so genau einen
+    //     Repair-Klick pro Reload. Idempotent: nach Repair re-rendert
+    //     die Seite und der Check zeigt dann das naechste fehlende File.
+    //   - Nur Drift, keine Missing -> status=warn, `can_repair=false`.
+    //     Hint listet die abweichenden Files. Decision 0008: Drift ist
+    //     Userin-Sache, kein Auto-Overwrite.
+    //
+    // Repair-Schutz: nur fehlende Files koennen restored werden. Drift
+    // wird bewusst NICHT als reparierbar gemeldet, damit der User keine
+    // lokalen Aenderungen ueberschreibt. Der `restore_how_to`-Handler
+    // (setup.php) ist ohnehin nur idempotent — ein Aufruf mit
+    // existierender Datei liefert `unchanged`.
+    //
+    // Wenn das Baseline-Bundle selbst gar nicht existiert (z.B. nach
+    // einem unsauberen Checkout), wird das als status=fail mit
+    // entsprechendem Hint gemeldet, aber kein Repair angeboten — der
+    // Bundle-Stand kann nur via git wiederhergestellt werden.
     // @end-spec
-    static function check_howto_files(): array
+    static function check_howto_baseline(): array
     {
-        $name = "pm/how-to-Files vorhanden";
+        $name = "pm/how-to-Files vs Baseline";
 
         $repo_root_abs = realpath(__DIR__ . "/../..");
 
@@ -507,45 +536,110 @@ class setup_checks
             return [
                 "name"          => $name,
                 "status"        => "fail",
-                "hint"          => "Repo-Root nicht aufloesbar — how-to-Check uebersprungen.",
+                "hint"          => "Repo-Root nicht aufloesbar — Baseline-Check uebersprungen.",
                 "can_repair"    => false,
                 "repair_action" => "",
             ];
         }
 
-        $howto_dir = $repo_root_abs . "/pm/how-to";
+        $howto_live_dir     = $repo_root_abs . "/pm/how-to";
+        $howto_baseline_dir = $repo_root_abs . "/app/_share/setup/howto-baseline";
+
+        $baseline_dir_exists = is_dir($howto_baseline_dir);
+
+        if (! $baseline_dir_exists)
+        {
+            return [
+                "name"          => $name,
+                "status"        => "fail",
+                "hint"          => "Baseline-Bundle fehlt: " . $howto_baseline_dir,
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
 
         $missing_files = [];
+        $drift_files   = [];
 
         foreach (setup_checks::HOWTO_FILES as $howto_filename)
         {
-            $howto_path = $howto_dir . "/" . $howto_filename;
+            $live_path     = $howto_live_dir . "/" . $howto_filename;
+            $baseline_path = $howto_baseline_dir . "/" . $howto_filename;
 
-            $howto_exists = file_exists($howto_path);
+            $live_exists     = is_file($live_path);
+            $baseline_exists = is_file($baseline_path);
 
-            if (! $howto_exists)
+            if (! $baseline_exists)
+            {
+                # Wenn die Baseline-Datei fehlt, ist das Bundle inkonsistent —
+                # behandeln wir wie Drift (nicht reparierbar), damit der
+                # Hint sichtbar bleibt.
+                $drift_files[] = $howto_filename . " (baseline fehlt)";
+                continue;
+            }
+
+            if (! $live_exists)
             {
                 $missing_files[] = $howto_filename;
+                continue;
+            }
+
+            $live_hash     = hash_file("sha256", $live_path);
+            $baseline_hash = hash_file("sha256", $baseline_path);
+
+            $hashes_match = is_string($live_hash)
+                && is_string($baseline_hash)
+                && hash_equals($baseline_hash, $live_hash);
+
+            if (! $hashes_match)
+            {
+                $drift_files[] = $howto_filename;
             }
         }
 
-        $all_present = count($missing_files) === 0;
+        $no_missing = count($missing_files) === 0;
+        $no_drift   = count($drift_files) === 0;
+        $all_ok     = $no_missing && $no_drift;
 
-        if ($all_present)
+        if ($all_ok)
         {
             return [
                 "name"          => $name,
                 "status"        => "ok",
-                "hint"          => count(setup_checks::HOWTO_FILES) . " Files unter pm/how-to/ vorhanden.",
+                "hint"          => count(setup_checks::HOWTO_FILES)
+                    . " Files unter pm/how-to/ identisch mit Baseline.",
                 "can_repair"    => false,
                 "repair_action" => "",
             ];
         }
 
+        if (! $no_missing)
+        {
+            # Fail: mindestens ein File fehlt. Repair-Action zeigt das
+            # erste fehlende File — pro Reload genau ein Klick noetig.
+            $first_missing = $missing_files[0];
+
+            $hint = "Fehlend: " . implode(", ", $missing_files);
+
+            if (! $no_drift)
+            {
+                $hint .= " — Drift: " . implode(", ", $drift_files);
+            }
+
+            return [
+                "name"          => $name,
+                "status"        => "fail",
+                "hint"          => $hint,
+                "can_repair"    => true,
+                "repair_action" => "restore_how_to:" . $first_missing,
+            ];
+        }
+
+        # Nur Drift, kein Missing: warn ohne Repair (Decision 0008).
         return [
             "name"          => $name,
-            "status"        => "fail",
-            "hint"          => "Fehlende how-to-Files: " . implode(", ", $missing_files),
+            "status"        => "warn",
+            "hint"          => "Drift gegen Baseline: " . implode(", ", $drift_files),
             "can_repair"    => false,
             "repair_action" => "",
         ];

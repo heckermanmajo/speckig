@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 // @spec
 // Setup/Repair-View (M015/0001, ausgebaut in 0002, Baseline-Checks in
-// 0003, Repair-Endpoint in 0004).
+// 0003, Repair-Endpoint in 0004, How-to-Baseline-Bundle + echter
+// restore_how_to-Handler in 0005).
 //
 // Vierte Hauptansicht des Speckig-UI. Bewusst so robust gebaut, dass sie
 // auch dann etwas Sinnvolles anzeigen kann, wenn die Welt drumherum
@@ -40,12 +41,13 @@ declare(strict_types=1);
 //   - Dispatch laeuft ueber den Wert in der Whitelist (Handler-Name,
 //     bisher nur `restore_how_to`). Die ID selbst hat das Format
 //     `<handler>:<argument>`; das Argument geht in den Handler-Call.
-//   - Solange das Baseline-Bundle (0005) noch fehlt, liefert
-//     `restore_how_to_handler` HTTP 200 + `{ok:false, status:
-//     "not_implemented", message: "..."}`. Bewusst 200 (nicht 501):
-//     der Endpoint selbst funktioniert und liefert ein definiertes
-//     Resultat — nur die konkrete Aktion ist noch nicht verdrahtet.
-//     Das macht den JS-Loader simpel (kein Sonderfall fuer 501).
+//   - Seit M015/0005 fuehrt `restore_how_to_handler` die konkrete
+//     Wiederherstellung aus dem Baseline-Bundle unter
+//     `app/_share/setup/howto-baseline/` aus: Live-Datei fehlt →
+//     atomar restored; Live existiert → `unchanged` (Drift-Schutz,
+//     Decision 0008). I/O-Fehler liefern HTTP 200 + `{ok:false,
+//     status:"io_error"}` — der HTTP-Status bleibt 200, damit der
+//     JS-Loader einen einheitlichen Read-Json-Pfad hat.
 //   - Antwort ist immer JSON, auch im Erfolgsfall.
 //   - Jeder Repair-Aufruf wird via `app::error_log()` protokolliert
 //     (ID + Resultat-Status). Logging laeuft BEVOR das Response-JSON
@@ -113,32 +115,155 @@ const REPAIR_IDS = [
 // @spec
 // restore_how_to_handler($filename): array
 //
-// Vertrag (M015/0004): legt eine fehlende `pm/how-to/<filename>` aus
-// dem Baseline-Bundle wieder an. Idempotent — zweimaliger Aufruf darf
-// nichts kaputt machen.
+// Vertrag (M015/0004 + 0005): legt eine fehlende
+// `pm/how-to/<filename>` aus dem Baseline-Bundle wieder an. Idempotent
+// — zweimaliger Aufruf darf nichts kaputt machen.
 //
-// Solange das Baseline-Bundle (M015/0005) nicht existiert, kann der
-// Handler die konkrete Restore-Routine nicht ausfuehren und liefert
-// `{ok:false, status:"not_implemented"}`. Bewusst HTTP 200, nicht 501:
-// der Endpoint selbst funktioniert, nur die Aktion ist noch nicht
-// verdrahtet. Verarbeitung im Client ist damit der gleiche Read-
-// Json-Pfad wie im Erfolgsfall.
+// Ablauf:
+//   - Defensive Whitelist-Pruefung: `restore_how_to:<filename>` muss in
+//     `REPAIR_IDS` stehen. Der aufrufende Dispatcher hat das zwar schon
+//     geprueft, hier nochmal explizit, damit dieser Handler nicht
+//     ueber direkten PHP-Aufruf umgangen werden kann.
+//   - Quelle: `<repo>/app/_share/setup/howto-baseline/<filename>`.
+//     Existiert die nicht, ist das Bundle kaputt → HTTP 200 +
+//     `{ok:false, status:"baseline_missing"}`. Bewusst 200, nicht 500:
+//     definiertes Resultat, kein Server-Error.
+//   - Ziel: `<repo>/pm/how-to/<filename>`.
+//   - Existiert das Ziel schon → `{ok:true, status:"unchanged"}` ohne
+//     Schreibvorgang. Schuetzt vor versehentlichem Ueberschreiben einer
+//     lokal abweichenden how-to-Datei (Drift-Fall, Decision 0008).
+//   - Existiert das Ziel nicht → atomar schreiben via tmp+rename. Bei
+//     Erfolg → `{ok:true, status:"restored", path:"pm/how-to/<name>"}`.
+//   - I/O-Fehler werden geloggt und liefern HTTP 200 +
+//     `{ok:false, status:"io_error"}`; HTTP-Status bleibt bei 200,
+//     damit der JS-Loader einen einheitlichen JSON-Read-Pfad hat. Der
+//     Endpoint-Dispatcher setzt den HTTP-Code, nicht dieser Handler.
 //
-// Sobald 0005 da ist, wird dieser Handler erweitert:
-//   - Zielpfad `<repo>/pm/how-to/<filename>` ist bereits validiert
-//     (der Aufrufer hat $filename aus REPAIR_IDS bezogen, also kein
-//     Traversal-Vektor).
-//   - Existiert das Ziel schon → `{ok:true, status:"unchanged"}`.
-//   - Sonst Baseline-Inhalt aus `app/_share/setup/howto-baseline/` lesen
-//     und atomar nach `pm/how-to/<filename>` schreiben.
+// Pfad-Sicherheit: `$filename` kommt aus dem Argument-Teil einer
+// REPAIR_ID, die Whitelist garantiert reine Basisnamen ohne Slashes
+// oder `..`. Trotzdem nutzt der Handler ausschliesslich basename() vor
+// dem Zusammenbau, damit der Schutz lokal sichtbar ist.
 // @end-spec
 function restore_how_to_handler(string $filename): array
 {
+    $repair_id = "restore_how_to:" . $filename;
+
+    $repair_id_is_known = isset(REPAIR_IDS[$repair_id]);
+
+    if (! $repair_id_is_known)
+    {
+        app::error_log("setup.php restore_how_to rejected unknown filename: " . $filename);
+        return [
+            "ok"      => false,
+            "status"  => "unknown_id",
+            "message" => "Unbekannter how-to-Filename.",
+            "id"      => $repair_id,
+        ];
+    }
+
+    # Defense in depth: nur den Basename verwenden, kein Pfad.
+    $safe_filename = basename($filename);
+
+    $repo_root_abs = realpath(__DIR__ . "/..");
+
+    $repo_root_resolved = is_string($repo_root_abs) && is_dir($repo_root_abs);
+
+    if (! $repo_root_resolved)
+    {
+        app::error_log("setup.php restore_how_to could not resolve repo root.");
+        return [
+            "ok"      => false,
+            "status"  => "io_error",
+            "message" => "Repo-Root nicht aufloesbar.",
+            "id"      => $repair_id,
+        ];
+    }
+
+    $baseline_path = $repo_root_abs . "/app/_share/setup/howto-baseline/" . $safe_filename;
+    $live_path     = $repo_root_abs . "/pm/how-to/" . $safe_filename;
+    $live_rel      = "pm/how-to/" . $safe_filename;
+
+    $baseline_exists = is_file($baseline_path);
+
+    if (! $baseline_exists)
+    {
+        app::error_log("setup.php restore_how_to baseline missing: " . $baseline_path);
+        return [
+            "ok"      => false,
+            "status"  => "baseline_missing",
+            "message" => "Baseline-Datei nicht gefunden.",
+            "id"      => $repair_id,
+        ];
+    }
+
+    $live_exists = file_exists($live_path);
+
+    if ($live_exists)
+    {
+        # Idempotenz + Drift-Schutz: nicht ueberschreiben, wenn schon was
+        # da ist (siehe Decision 0008).
+        return [
+            "ok"     => true,
+            "status" => "unchanged",
+            "id"     => $repair_id,
+            "path"   => $live_rel,
+        ];
+    }
+
+    $baseline_contents = file_get_contents($baseline_path);
+
+    $baseline_read_ok = $baseline_contents !== false;
+
+    if (! $baseline_read_ok)
+    {
+        app::error_log("setup.php restore_how_to could not read baseline: " . $baseline_path);
+        return [
+            "ok"      => false,
+            "status"  => "io_error",
+            "message" => "Baseline-Inhalt konnte nicht gelesen werden.",
+            "id"      => $repair_id,
+        ];
+    }
+
+    # Atomar via tmp+rename schreiben — vermeidet halbgeschriebene Files,
+    # falls der Prozess waehrend write() abbricht.
+    $tmp_path = $live_path . ".tmp." . bin2hex(random_bytes(4));
+
+    $bytes_written = file_put_contents($tmp_path, $baseline_contents);
+
+    $write_ok = $bytes_written !== false;
+
+    if (! $write_ok)
+    {
+        app::error_log("setup.php restore_how_to could not write tmp: " . $tmp_path);
+        return [
+            "ok"      => false,
+            "status"  => "io_error",
+            "message" => "Schreiben der Tmp-Datei fehlgeschlagen.",
+            "id"      => $repair_id,
+        ];
+    }
+
+    $rename_ok = rename($tmp_path, $live_path);
+
+    if (! $rename_ok)
+    {
+        # Tmp aufraeumen, damit kein Streu-File liegen bleibt.
+        @unlink($tmp_path);
+        app::error_log("setup.php restore_how_to rename failed: " . $tmp_path . " -> " . $live_path);
+        return [
+            "ok"      => false,
+            "status"  => "io_error",
+            "message" => "Rename der Tmp-Datei fehlgeschlagen.",
+            "id"      => $repair_id,
+        ];
+    }
+
     return [
-        "ok"      => false,
-        "status"  => "not_implemented",
-        "message" => "Baseline-Bundle fehlt (siehe 015/0005).",
-        "id"      => "restore_how_to:" . $filename,
+        "ok"     => true,
+        "status" => "restored",
+        "id"     => $repair_id,
+        "path"   => $live_rel,
     ];
 }
 

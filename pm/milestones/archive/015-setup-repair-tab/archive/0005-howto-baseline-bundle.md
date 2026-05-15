@@ -113,3 +113,91 @@ See: pm/how-to/decisions.md
 - Diff-Anzeige im UI.
 - Auto-Sync.
 - Baseline-Bundles fuer andere Verzeichnisse.
+
+## Done
+- Decision `pm/decisions/0008-howto-baseline.md` als eigener
+  `[chore]`-Commit angelegt: Speicherort `app/_share/setup/howto-baseline/`,
+  manuelle Fortschreibung, Drift = warn ohne Repair-Button.
+- Baseline-Bundle `app/_share/setup/howto-baseline/*.md` als 1:1-Kopie
+  der 16 aktuellen `pm/how-to/*.md`-Files angelegt (`cp pm/how-to/*.md
+  app/_share/setup/howto-baseline/`). `diff -r` ist clean.
+- `setup_checks::check_howto_files` ersetzt durch `check_howto_baseline`:
+  pro Datei in `HOWTO_FILES` Live vs Baseline via SHA-256 vergleichen.
+  Aggregation in ein einziges Result (Schema-Konstanz): alle gleich →
+  `ok`; mind. ein File fehlt → `fail` + `can_repair:true` mit
+  `restore_how_to:<erstes-fehlendes-File>` (pro Reload ein Klick, dann
+  rendert die Liste das naechste fehlende File); nur Drift → `warn`
+  ohne Repair-Button. Bundle-Datei selbst fehlt → wird wie Drift
+  gehandhabt (nicht reparierbar), Bundle-Dir fehlt → `fail` ohne
+  Repair. `CHECKS`-Slug auf `howto_baseline`, UI-Name auf
+  `pm/how-to-Files vs Baseline` gesetzt.
+- `restore_how_to_handler($filename)` in `app/setup.php` mit echter
+  Logik:
+    - Defensive Whitelist-Pruefung gegen `REPAIR_IDS`
+      (`restore_how_to:<filename>`); unbekannt → `unknown_id`.
+    - Quelle `<repo>/app/_share/setup/howto-baseline/<filename>`,
+      Ziel `<repo>/pm/how-to/<filename>`. Nur `basename()` verwenden
+      (defense in depth gegen Traversal, obwohl die Whitelist das
+      schon abdeckt).
+    - Live existiert → `{ok:true, status:"unchanged"}` (Idempotenz +
+      Drift-Schutz, Decision 0008).
+    - Live fehlt → Baseline lesen, atomar via `tmp+rename` schreiben,
+      `{ok:true, status:"restored", path:"pm/how-to/<name>"}`. Tmp wird
+      bei rename-Fehler aufgeraeumt.
+    - Baseline-Datei fehlt → `baseline_missing`. I/O-Fehler →
+      `io_error`. Alle 200, damit der JS-Loader einen einheitlichen
+      Read-Json-Pfad hat (HTTP-Code setzt nur der Dispatcher).
+- `app/setup.php`-File-Header-Spec und Endpoint-Spec auf 0005
+  aktualisiert; der `not_implemented`-Pfad ist Geschichte.
+- `app/pm.php`-Save-Handler-Spec explizit ergaenzt: `pm/`-Praefix-Check
+  schliesst das Bundle unter `app/_share/setup/howto-baseline/` aus.
+  Keine Code-Aenderung noetig — der bestehende Guard greift schon.
+- Milestone-Abschluss: `milestone.md` Haekchen + `Status: done`,
+  Milestone-Folder via `git mv` nach `archive/`. Letztes Ticket des
+  Milestones, daher beide Moves im selben Close-Commit.
+
+Files touched:
+- `pm/decisions/0008-howto-baseline.md` (neu, separater Commit).
+- `app/_share/setup/howto-baseline/*.md` (16 neue Dateien).
+- `app/_share/setup_checks.php` (CHECKS-Registry, HOWTO_FILES-Spec,
+  `check_howto_files` → `check_howto_baseline`).
+- `app/setup.php` (echter restore-Handler + Spec-Updates).
+- `app/pm.php` (Spec-Block-Ergaenzung, keine Logik-Aenderung).
+- `pm/milestones/015-setup-repair-tab/milestone.md` (Haekchen + Status:
+  done).
+- Ticket-Move open/ → archive/.
+- Milestone-Move pm/milestones/015-... → pm/milestones/archive/015-...
+
+Smoketest-Belege (Server `SPECKIG_ROOT="$(pwd)" php -S 127.0.0.1:8086
+-t app`):
+- `php -l app/_share/setup_checks.php app/setup.php app/pm.php` →
+  clean.
+- `curl -s "http://127.0.0.1:8086/setup.php" | grep -oE
+  'status-(ok|warn|fail)' | sort | uniq -c` → `6 status-ok` (alle
+  Checks gruen; Baseline-Bundle wurde gerade frisch angelegt, also
+  identisch zur Live-Version).
+- `POST .../setup.php?action=repair&id=restore_how_to:bugs.md` →
+  HTTP 200 + `{"ok":true,"status":"unchanged","id":"restore_how_to:
+  bugs.md","path":"pm/how-to/bugs.md"}` (Live-Datei existiert,
+  Idempotenz greift).
+- `POST .../setup.php?action=repair&id=unknown` → HTTP 400 +
+  `unknown_id`.
+- `POST .../setup.php?action=repair&id=` → HTTP 400 + `unknown_id`.
+- `ls app/_share/setup/howto-baseline/ | wc -l` → 16 (= `ls pm/how-to/
+  | wc -l`).
+- `diff -r pm/how-to/ app/_share/setup/howto-baseline/` → keine Diffs.
+- `find . -name "*.tmp.*" -not -path "./.git/*"` → leer.
+- `find . -name "app.sqlite*" -not -path "./.git/*"` → nur
+  `./app.sqlite` (kanonisch).
+
+Plan-Abweichungen:
+- Plan-Wortlaut "pro Datei eine Zeile, sonst Sammelresult": umgesetzt
+  als striktes Single-Result-Schema, weil `setup_checks::run()` pro
+  Check-Callable nur ein Result erlaubt (Stabilitaet des Schemas, siehe
+  Ticket-Hint). Hint listet alle problematischen Files, `repair_action`
+  zeigt das erste fehlende File. Pro Reload genau ein Repair-Klick —
+  Idempotenz traegt den Rest.
+- Drift-/Missing-Verifikation NICHT durchgespielt (keine simulierten
+  Defekte laut Ticket-Vorgabe). Verifiziert ueber Healthy-State + den
+  `unchanged`-Pfad des Handlers, der die Idempotenz-Verzweigung exakt
+  trifft.

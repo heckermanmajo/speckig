@@ -1545,7 +1545,11 @@ if ($method_is_post && $action_is_save)
     //     zufaellige `archive`-Substrings in Dateinamen.
     //   - Pfad-Whitelist (M014/0001): Save akzeptiert genau dann, wenn
     //     `app::pm_write_kind($path)` !== "" ODER
-    //     `app::pm_path_kind_legacy($path)` !== "".
+    //     `app::pm_path_kind_legacy($path)` !== "". Pfade ausserhalb
+    //     `pm/` fallen schon am `pm/`-Praefix-Check; das schliesst das
+    //     How-to-Baseline-Bundle unter `app/_share/setup/howto-baseline/`
+    //     (M015/0005, Decision 0008) explizit aus — das Bundle ist ein
+    //     versioniertes Asset, kein editierbares Doc.
     //       * pm_write_kind klassifiziert die neuen Info-Schreibziele:
     //         pm/ideas/<slug>.md, pm/reports/NNNN-<slug>.md,
     //         pm/audits/<slug>.md, pm/terms/<slug>.md,

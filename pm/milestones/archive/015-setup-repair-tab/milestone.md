@@ -9,7 +9,7 @@ CLAUDE.md)? Sind die Vendor-JS-/PHP-Files an Ort und Stelle? Plus pro
 Befund ein optionaler `Repair`-Button (z.B. fehlende how-to-Datei aus
 Template anlegen).
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-setup-tab-route.md — vierten Header-Tab in
@@ -25,7 +25,7 @@ Status: planned
       repair&id=...`, fuehrt benannte Reparatur aus (z.B.
       `restore_how_to:bugs.md` legt fehlende how-to-Datei aus
       Template-Bundle an).
-- [ ] open/0005-howto-baseline-bundle.md — How-to-Baseline als
+- [x] archive/0005-howto-baseline-bundle.md — How-to-Baseline als
       versioniertes Asset (z.B. `app/_share/setup/howto-baseline/`),
       damit Repair einen Referenz-Stand hat. Inkl. Decision, wie der
       Stand fortgeschrieben wird.
