@@ -37,3 +37,58 @@ ausgibt.
 - Windows.
 
 See: pm/how-to/process.md
+
+## Plan
+- **Neue Datei**: `scripts/install.sh`, `chmod +x`.
+- **Shebang**: `#!/usr/bin/env bash`, `set -euo pipefail`.
+- **Schritte**:
+  1. **PHP-Check**: `command -v php` → falls fehlt: klare Meldung
+     ("Bitte PHP 8.5+ installieren, siehe pm/how-to/install.md"),
+     exit 1.
+  2. **PHP-Version**: `php -r 'exit(PHP_VERSION_ID >= 80500 ? 0 : 1);'`
+     → falls fail: Meldung mit gefundener Version, exit 1.
+  3. **Shell erkennen**: `case "$SHELL" in */zsh) target=~/.zshrc;;
+     */bash) target=~/.bashrc;; *) target="";; esac`. Wenn leer →
+     fragen (interaktiv): "Konnte Shell nicht erkennen ($SHELL).
+     In welche Datei eintragen?", User-Input lesen. Default
+     `~/.bashrc`.
+  4. **Marker-Check**: `grep -q "^# >>> speckig" "$target"` → wenn
+     ja: melden "Snippet schon eingerichtet (Marker gefunden in
+     $target). Nichts geaendert.", exit 0.
+  5. **Diff zeigen + Bestaetigung**: `echo "Folgender Block wird in
+     $target eingefuegt:"; cat scripts/bashrc-snippet.sh; read -p
+     "OK? [y/N] " ans`. Bei `y/Y` weiter, sonst exit 0.
+  6. **Append**: `printf '\n' >> "$target"; cat
+     scripts/bashrc-snippet.sh >> "$target"`. Atomar genug (ein
+     append, der entweder ganz oder gar nicht passiert).
+  7. **Next-Steps drucken**: "Bitte `source $target` ausfuehren (oder
+     Shell neu starten). Danach `speckig` aufrufen."
+- **Idempotenz**: Marker-Check (Schritt 4) sorgt dafuer, dass zweimal
+  Ausfuehren keine Duplikate erzeugt.
+- **Repo-URL nicht hartkodieren**: das Script geht davon aus, dass
+  es **innerhalb** eines bereits geklonten Repos lebt. Es macht keinen
+  `git clone` — das ist Userin-Sache.
+- **Spec-Block** als Kommentar oben im Script: Vertrag, Idempotenz,
+  was es nicht macht.
+- **Files touched**: `scripts/install.sh` (neu).
+
+## Verifikation
+- `bash -n scripts/install.sh` clean.
+- `shellcheck scripts/install.sh` ohne Errors (Warnings ok).
+- Trockenlauf in einer Sandbox-Shell:
+  - `cp ~/.bashrc /tmp/bashrc.bak`
+  - `HOME=/tmp/fakehome SHELL=/bin/bash bash scripts/install.sh`
+    (interaktiv: y bestaetigen).
+  - `grep -c "^# >>> speckig$" /tmp/fakehome/.bashrc` → 1.
+  - Zweiter Lauf: `HOME=/tmp/fakehome SHELL=/bin/bash bash
+    scripts/install.sh` → meldet "schon eingerichtet", exit 0.
+  - `grep -c "^# >>> speckig$" /tmp/fakehome/.bashrc` → immer noch 1.
+  - Cleanup: `rm -rf /tmp/fakehome`.
+- PHP-Fail-Test: `PATH= bash scripts/install.sh` → "Bitte PHP
+  installieren", exit 1.
+- `git status` clean.
+
+## Out of scope (Plan)
+- Auto-clone des Repos.
+- `speckig update`.
+- Systemd / launchd.
