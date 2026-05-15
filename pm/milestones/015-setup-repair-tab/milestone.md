@@ -21,7 +21,7 @@ Status: planned
 - [x] archive/0003-baseline-checks.md — initiale Checkliste: PHP-Version,
       SPECKIG_ROOT, Repo-Pfad, Datenbank-File (canonical path,
       siehe Memory), how-to-Files vorhanden + Hashes.
-- [ ] open/0004-repair-actions.md — POST-Endpoint `setup.php?action=
+- [x] archive/0004-repair-actions.md — POST-Endpoint `setup.php?action=
       repair&id=...`, fuehrt benannte Reparatur aus (z.B.
       `restore_how_to:bugs.md` legt fehlende how-to-Datei aus
       Template-Bundle an).
