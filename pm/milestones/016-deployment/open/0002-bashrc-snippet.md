@@ -34,3 +34,63 @@ die den Server mit korrektem docroot und Port startet.
 - Windows-Support.
 
 See: CLAUDE.md
+
+## Plan
+- **Neue Datei**: `scripts/bashrc-snippet.sh`.
+- **Inhalt** (POSIX-sh-kompatibel):
+  ```sh
+  # >>> speckig (managed by scripts/install.sh)
+  speckig() {
+      local repo_root
+      if [ -n "$1" ]; then
+          repo_root="$1"
+      else
+          repo_root="$HOME/Desktop/speckig"
+      fi
+      if [ ! -d "$repo_root/app" ]; then
+          echo "speckig: kein app/-Verzeichnis unter $repo_root" >&2
+          return 1
+      fi
+      export SPECKIG_ROOT="$repo_root"
+      local url="http://localhost:8083/"
+      ( sleep 0.5 && ( command -v xdg-open >/dev/null && xdg-open "$url" \
+          || ( command -v open >/dev/null && open "$url" ) ) >/dev/null 2>&1 ) &
+      ( cd "$repo_root/app" && php -S "localhost:8083" -t . )
+  }
+  # <<< speckig
+  ```
+- **Marker**: `# >>> speckig` / `# <<< speckig` als Block-Begrenzer
+  fuer den Installer (0003).
+- **Snippet definiert nur eine Funktion** — kein Auto-Start beim
+  Shell-Login.
+- **Mac/Linux-Kompatibilitaet**: Browser-Open faellt von `xdg-open`
+  zurueck auf `open` (macOS). Beide Plattformen werden so abgedeckt.
+- **Port 8083**: hart kodiert wie in `scripts/run.sh`. (Memory: User
+  laeuft seinen eigenen Server auf 8083 — die Funktion ist fuer
+  **fremde** Maschinen gedacht, dort ist 8083 frei.)
+- **Spec-Kommentar** als sh-Kommentarzeile oben in der Datei, der das
+  Vertrag dokumentiert (was die Funktion tut, dass Marker-Kommentare
+  Installer-Pflicht sind).
+- **Files touched**: `scripts/bashrc-snippet.sh` (neu, ohne `+x` —
+  wird gesourced, nicht ausgefuehrt).
+
+## Verifikation
+- Datei existiert.
+- `bash -n scripts/bashrc-snippet.sh` clean (Syntax).
+- `sh -c '. ./scripts/bashrc-snippet.sh && type speckig'` zeigt die
+  Funktion als definiert.
+- Manueller Smoketest auf der Dev-Maschine:
+  - `( . scripts/bashrc-snippet.sh && speckig /tmp/fake )` → klare
+    Fehlermeldung "kein app/-Verzeichnis", `return 1`.
+  - **Nicht** mit dem echten Repo testen, weil das den 8083-User-
+    Server-Konflikt triggert. Stattdessen das Snippet rein syntaktisch
+    pruefen.
+- Marker `# >>> speckig` und `# <<< speckig` als erste/letzte Zeile
+  des Funktionsblocks vorhanden (`grep -c "^# >>> speckig$"
+  scripts/bashrc-snippet.sh` → 1).
+- `git status` clean.
+
+## Out of scope (Plan)
+- Installer-Script (0003).
+- Konfigurierbarer Port via Argument.
+- Windows.
