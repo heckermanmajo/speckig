@@ -153,9 +153,33 @@ $ideas_action_block_html .= "<span class=\"form-error\" hidden></span>";
 $ideas_action_block_html .= "</form>";
 $ideas_action_block_html .= "</div>";
 
+# Action-Block fuer die Reports-Sektion (M014/0004): "+ Report"-Button plus
+# verstecktes Inline-Formular mit Slug-Eingabe + Type-Select
+# (research/audit/comparison). Submit-Logik lebt in plan_loader.js
+# (init_new_report_form), Endpoint `POST /pm.php?action=new_report`.
+# Numerierung ist global und wird serverseitig ermittelt (max+1 aus
+# pm/reports/, siehe pm/how-to/reports.md). Markup-Stil spiegelt
+# `.new-idea-form` aus M014/0003 — gleiche Klassen
+# (`.btn-cancel-form`, `.form-error`, `.input-slug`), damit existierende
+# Helper greifen.
+$reports_action_block_html  = "<div class=\"plan-action-block\">";
+$reports_action_block_html .= "<button type=\"button\" class=\"btn-new-report\">+ Report</button>";
+$reports_action_block_html .= "<form class=\"new-report-form\" hidden>";
+$reports_action_block_html .= "<input type=\"text\" name=\"slug\" class=\"input-slug\" placeholder=\"slug (a-z, -)\" maxlength=\"80\" required>";
+$reports_action_block_html .= "<select name=\"type\" class=\"input-type\" required>";
+$reports_action_block_html .= "<option value=\"research\">research</option>";
+$reports_action_block_html .= "<option value=\"audit\">audit</option>";
+$reports_action_block_html .= "<option value=\"comparison\">comparison</option>";
+$reports_action_block_html .= "</select>";
+$reports_action_block_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+$reports_action_block_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+$reports_action_block_html .= "<span class=\"form-error\" hidden></span>";
+$reports_action_block_html .= "</form>";
+$reports_action_block_html .= "</div>";
+
 $sidebar_html .= "<h2 class=\"plan-section-heading\">Info</h2>";
 $sidebar_html .= render_info_section("Ideas",     $info_sections["ideas"],     "pm/ideas",     $ideas_action_block_html);
-$sidebar_html .= render_info_section("Reports",   $info_sections["reports"],   "pm/reports");
+$sidebar_html .= render_info_section("Reports",   $info_sections["reports"],   "pm/reports",   $reports_action_block_html);
 $sidebar_html .= render_info_section("Decisions", $info_sections["decisions"], "pm/decisions");
 $sidebar_html .= render_info_section("Audits",    $info_sections["audits"],    "pm/audits");
 $sidebar_html .= render_info_section("Terms",     $info_sections["terms"],     "pm/terms");

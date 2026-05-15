@@ -17,7 +17,7 @@ Status: planned
       fuer Info-Files; CodeMirror-Mount, Save/Cancel.
 - [x] archive/0003-new-idea-action.md — Action "neue Idea anlegen", Slug-
       Eingabe, leere Datei aus Template (pm/how-to/ideas.md).
-- [ ] open/0004-new-report-action.md — Action "neuer Report", naechste
+- [x] archive/0004-new-report-action.md — Action "neuer Report", naechste
       globale Nummer ermitteln, Template aus pm/how-to/reports.md.
 - [ ] open/0005-new-decision-action.md — Action "neue Decision-Datei",
       naechste globale Nummer, Template aus pm/how-to/decisions.md.

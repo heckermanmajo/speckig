@@ -66,6 +66,16 @@
 // Read-View geladen wird. Bei Fehler wird `.form-error` der Idea-Form
 // befuellt. Self-guarded: tut nichts, wenn Button/Form fehlen (z.B. auf
 // plan.php).
+//
+// New-Report-Action (M014/0004): `init_new_report_form()` ist die
+// Schwester-Funktion auf der Reports-Sektion. Click an `.btn-new-report`
+// oeffnet `.new-report-form` (Slug + Type-Select research/audit/
+// comparison). Submit POSTet `{slug, type}` an `POST /pm.php?action=new_report`;
+// die Numerierung NNNN ermittelt der Server (global, max+1, siehe
+// pm/how-to/reports.md). Bei `ok:true` navigiert der Loader auf
+// `info.php?path=<data.path>` (der Server liefert den ganzen Pfad inkl.
+// NNNN-Prefix, der Client baut ihn NICHT zusammen). Bei Fehler wird
+// `.form-error` der Report-Form befuellt. Self-guarded.
 // @end-spec
 
 (function ()
@@ -1223,6 +1233,210 @@
         form_element.addEventListener("submit", on_new_idea_submit);
     }
 
+    // ---- New-Report-Action (M014/0004) ------------------------------------
+    // Sidebar-Button "+ Report" auf info.php oeffnet eine Inline-Form mit
+    // Slug-Input + Type-Select (research/audit/comparison). Die Numerierung
+    // NNNN wird serverseitig vergeben (global, max+1 aus pm/reports/).
+    // Submit POSTet `{slug, type}` an `/pm.php?action=new_report`. Bei
+    // `ok:true` navigiert der Loader auf `info.php?path=<data.path>` —
+    // der Server liefert den vollen Pfad inklusive NNNN-Prefix.
+
+    function show_new_report_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    function on_new_report_button_click()
+    {
+        let form_element   = document.querySelector(".new-report-form");
+        let button_element = document.querySelector(".btn-new-report");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (slug_input_exists)
+        {
+            slug_input.focus();
+        }
+    }
+
+    function on_new_report_cancel_click()
+    {
+        let form_element   = document.querySelector(".new-report-form");
+        let button_element = document.querySelector(".btn-new-report");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        let slug_input = form_element.querySelector(".input-slug");
+        let type_input = form_element.querySelector(".input-type");
+        let error_node = form_element.querySelector(".form-error");
+
+        if (slug_input !== null) { slug_input.value = ""; }
+
+        // Type-Select auf den Default (erstes Option-Element) zuruecksetzen,
+        // damit der Cancel keinen Halb-Edit-Zustand stehen laesst.
+        if (type_input !== null) { type_input.selectedIndex = 0; }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden   = true;
+        button_element.hidden = false;
+    }
+
+    async function on_new_report_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let slug_input = form_element.querySelector(".input-slug");
+        let type_input = form_element.querySelector(".input-type");
+
+        let inputs_exist = slug_input !== null && type_input !== null;
+
+        if (! inputs_exist)
+        {
+            return;
+        }
+
+        let slug_value = slug_input.value.trim();
+        let type_value = type_input.value;
+
+        let slug_is_present = slug_value !== "";
+        let type_is_present = type_value !== "";
+
+        let inputs_are_valid = slug_is_present && type_is_present;
+
+        if (! inputs_are_valid)
+        {
+            show_new_report_error(form_element, "Slug und Type sind Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/pm.php?action=new_report",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({ slug: slug_value, type: type_value }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("plan_loader: new_report network error", network_failed);
+            show_new_report_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("plan_loader: new_report bad json", json_parse_failed);
+            show_new_report_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true
+            && typeof data.path === "string"
+            && data.path !== "";
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_report_error(form_element, server_message);
+            return;
+        }
+
+        // Symmetrisch zu new_idea: einfacher Reload mit `?path=...`, damit
+        // die Sidebar die neue NNNN-Datei listet UND der Loader sie direkt
+        // im Content-Bereich oeffnet (Read-Mode mit Edit-Toolbar).
+        let target_url = "/info.php?path=" + encodeURIComponent(data.path);
+
+        window.location.assign(target_url);
+    }
+
+    function init_new_report_form()
+    {
+        let button_element = document.querySelector(".btn-new-report");
+        let form_element   = document.querySelector(".new-report-form");
+
+        let elements_exist = button_element !== null && form_element !== null;
+
+        if (! elements_exist)
+        {
+            return;
+        }
+
+        button_element.addEventListener("click", on_new_report_button_click);
+
+        let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+        let cancel_button_exists = cancel_button !== null;
+
+        if (cancel_button_exists)
+        {
+            cancel_button.addEventListener("click", on_new_report_cancel_click);
+        }
+
+        form_element.addEventListener("submit", on_new_report_submit);
+    }
+
     function init_plan_loader()
     {
         let article_element = get_article_element();
@@ -1268,6 +1482,11 @@
         // init_new_idea_form ist self-guarded und tut nichts, wenn
         // Button/Form fehlen (z.B. auf plan.php).
         init_new_idea_form();
+
+        // New-Report-Form (M014/0004) — nur in info.php vorhanden;
+        // init_new_report_form ist self-guarded und tut nichts, wenn
+        // Button/Form fehlen (z.B. auf plan.php).
+        init_new_report_form();
     }
 
     document.addEventListener("DOMContentLoaded", init_plan_loader);

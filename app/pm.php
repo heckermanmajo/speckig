@@ -8,7 +8,8 @@ declare(strict_types=1);
 // new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005) plus
 // new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006) plus
 // new_idea-Endpoint fuer die "+ Idee"-Action in der Info-Sidebar
-// (M014/0003).
+// (M014/0003) plus new_report-Endpoint fuer die "+ Report"-Action in
+// der Info-Sidebar mit globaler Numerierung (M014/0004).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
@@ -44,6 +45,17 @@ declare(strict_types=1);
 //                                       Ueberschreiben). Atomar via
 //                                       tmp+rename.
 //                                       Antwort: {ok:true, path:"pm/ideas/<slug>.md"}.
+// POST ?action=new_report            -> Neuen Report unter
+//                                       pm/reports/NNNN-<slug>.md anlegen
+//                                       (M014/0004). Body JSON:
+//                                       {slug, type}. Slug-Whitelist
+//                                       `^[a-z0-9][a-z0-9-]*$`, Laenge <=80.
+//                                       Type-Whitelist: research/audit/
+//                                       comparison. Globale Numerierung:
+//                                       max(existierender NNNN in
+//                                       pm/reports/) + 1, vierstellig
+//                                       zero-padded. Atomar via tmp+rename.
+//                                       Antwort: {ok:true, path, number}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
 // Fehler : HTTP 400/409/413/500 + { ok: false, message }.
@@ -98,6 +110,7 @@ $action_is_save = $action === "save";
 $action_is_new_milestone = $action === "new_milestone";
 $action_is_new_ticket    = $action === "new_ticket";
 $action_is_new_idea      = $action === "new_idea";
+$action_is_new_report    = $action === "new_report";
 
 if ($method_is_post && $action_is_new_idea)
 {
@@ -255,6 +268,250 @@ IDEA_MD;
     exit(json_encode([
         "ok"   => true,
         "path" => $ni_file_rel,
+    ]));
+}
+
+if ($method_is_post && $action_is_new_report)
+{
+    // @spec
+    // POST ?action=new_report legt einen neuen Report unter
+    // pm/reports/NNNN-<slug>.md aus einem Template an.
+    // Vertrag:
+    //   - Body JSON: {"slug": "...", "type": "research|audit|comparison"}.
+    //   - slug: 1-80 Zeichen, ausschliesslich [a-z0-9-], MUSS mit einem
+    //     [a-z0-9] starten (kein fuehrender Bindestrich). Form-Regex
+    //     `^[a-z0-9][a-z0-9-]*$`. Sonst 400.
+    //   - type: einer aus {"research", "audit", "comparison"}. Sonst 400.
+    //   - Naechste Nummer NNNN: scandir(pm/reports/), alle Eintraege
+    //     `NNNN-*.md` matchen, max+1. Bei leerem Verzeichnis -> 1. Wird
+    //     vierstellig zero-padded. Numerierung ist GLOBAL und wird nie
+    //     wiederverwendet (siehe pm/how-to/reports.md).
+    //   - Zielpfad: pm/reports/NNNN-<slug>.md. Bei Kollision (sollte
+    //     durch max+1 nicht passieren, defensive Schicht) -> 409.
+    //   - Template fest verdrahtet (siehe pm/how-to/reports.md). Title
+    //     wird aus dem Slug abgeleitet (Bindestriche -> Spaces,
+    //     ucwords). Datum via date("Y-m-d"). Status fest "draft".
+    //   - Schreiben atomar via tmp + rename.
+    //   - Antwort 200 + {ok:true, path:"pm/reports/NNNN-<slug>.md", number:"NNNN"}.
+    //   - Jede Abweisung wird via app::error_log() protokolliert.
+    // @end-spec
+
+    $nr_body_raw = file_get_contents("php://input");
+
+    $nr_body_read_failed = $nr_body_raw === false;
+
+    if ($nr_body_read_failed)
+    {
+        app::error_log("pm.php new_report body read failed.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nr_payload = json_decode($nr_body_raw, true);
+
+    $nr_payload_is_object =
+        is_array($nr_payload)
+        && json_last_error() === JSON_ERROR_NONE;
+
+    if (! $nr_payload_is_object)
+    {
+        app::error_log("pm.php new_report rejected: body ist kein JSON.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nr_slug_raw = isset($nr_payload["slug"]) ? $nr_payload["slug"] : null;
+    $nr_type_raw = isset($nr_payload["type"]) ? $nr_payload["type"] : null;
+
+    # Slug validieren: String, 1-80 Zeichen, Regex ^[a-z0-9][a-z0-9-]*$.
+    $nr_slug_is_string = is_string($nr_slug_raw);
+    $nr_slug           = $nr_slug_is_string ? $nr_slug_raw : "";
+
+    $nr_slug_length_ok =
+        $nr_slug_is_string
+        && strlen($nr_slug) >= 1
+        && strlen($nr_slug) <= 80;
+
+    $nr_slug_shape_ok =
+        $nr_slug_length_ok
+        && preg_match('/^[a-z0-9][a-z0-9-]*$/', $nr_slug) === 1;
+
+    if (! $nr_slug_shape_ok)
+    {
+        app::error_log("pm.php new_report rejected slug: " . (string) $nr_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger slug.",
+        ]));
+    }
+
+    # Type-Whitelist hart pruefen.
+    $nr_type_is_string = is_string($nr_type_raw);
+    $nr_type           = $nr_type_is_string ? $nr_type_raw : "";
+
+    $nr_allowed_types = ["research", "audit", "comparison"];
+
+    $nr_type_is_allowed =
+        $nr_type_is_string
+        && in_array($nr_type, $nr_allowed_types, true);
+
+    if (! $nr_type_is_allowed)
+    {
+        app::error_log("pm.php new_report rejected type: " . (string) $nr_type);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger type.",
+        ]));
+    }
+
+    # Naechste globale Nummer bestimmen: scandir(pm/reports/), alle
+    # `NNNN-*.md`-Eintraege matchen, max+1. Bei leer -> 1.
+    $nr_reports_dir = $repo_root_abs . "/pm/reports";
+
+    $nr_entries = @scandir($nr_reports_dir);
+
+    if ($nr_entries === false)
+    {
+        $nr_entries = [];
+    }
+
+    $nr_existing_numbers = [];
+
+    foreach ($nr_entries as $nr_entry)
+    {
+        $nr_entry_is_dotted = $nr_entry === "." || $nr_entry === "..";
+
+        if ($nr_entry_is_dotted)
+        {
+            continue;
+        }
+
+        $nr_entry_is_md = str_ends_with($nr_entry, ".md");
+
+        if (! $nr_entry_is_md)
+        {
+            continue;
+        }
+
+        $nr_entry_long_enough = strlen($nr_entry) >= 4;
+
+        if (! $nr_entry_long_enough)
+        {
+            continue;
+        }
+
+        $nr_prefix = substr($nr_entry, 0, 4);
+
+        $nr_prefix_is_four_digits = ctype_digit($nr_prefix);
+
+        if (! $nr_prefix_is_four_digits)
+        {
+            continue;
+        }
+
+        $nr_existing_numbers[] = (int) $nr_prefix;
+    }
+
+    $nr_has_existing = count($nr_existing_numbers) > 0;
+
+    $nr_next_number = $nr_has_existing ? (max($nr_existing_numbers) + 1) : 1;
+    $nr_file_nnnn   = sprintf("%04d", $nr_next_number);
+
+    $nr_file_rel = "pm/reports/" . $nr_file_nnnn . "-" . $nr_slug . ".md";
+    $nr_file_abs = $repo_root_abs . "/" . $nr_file_rel;
+
+    # Kollisionspruefung (defensive Schicht — max+1 sollte das nie treffen).
+    $nr_file_collision = file_exists($nr_file_abs);
+
+    if ($nr_file_collision)
+    {
+        app::error_log("pm.php new_report collision: " . $nr_file_rel);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Report existiert schon.",
+        ]));
+    }
+
+    # Title aus Slug ableiten: "agent-smoke" -> "Agent Smoke".
+    $nr_title = ucwords(str_replace("-", " ", $nr_slug));
+
+    # Datum auf heute.
+    $nr_today = date("Y-m-d");
+
+    # Template fest verdrahtet (siehe Spec oben + pm/how-to/reports.md).
+    $nr_template = <<<REPORT_MD
+# {$nr_file_nnnn} — {$nr_title}
+
+Date: {$nr_today}
+Type: {$nr_type}
+Status: draft
+
+## TL;DR
+
+## Findings
+
+## Sources
+
+## Hooks for us
+
+REPORT_MD;
+
+    # Atomar schreiben: tmp + rename.
+    $nr_tmp_abs = $nr_file_abs . ".tmp." . bin2hex(random_bytes(4));
+
+    $nr_tmp_write_bytes = @file_put_contents($nr_tmp_abs, $nr_template);
+
+    $nr_tmp_write_failed = $nr_tmp_write_bytes === false;
+
+    if ($nr_tmp_write_failed)
+    {
+        app::error_log("pm.php new_report tmp write failed: " . $nr_file_rel);
+
+        if (is_file($nr_tmp_abs))
+        {
+            @unlink($nr_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Schreiben fehlgeschlagen.",
+        ]));
+    }
+
+    $nr_rename_ok = @rename($nr_tmp_abs, $nr_file_abs);
+
+    if (! $nr_rename_ok)
+    {
+        app::error_log("pm.php new_report rename failed: " . $nr_file_rel);
+
+        if (is_file($nr_tmp_abs))
+        {
+            @unlink($nr_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Rename fehlgeschlagen.",
+        ]));
+    }
+
+    app::error_log("pm.php new_report: " . $nr_file_rel);
+
+    exit(json_encode([
+        "ok"     => true,
+        "path"   => $nr_file_rel,
+        "number" => $nr_file_nnnn,
     ]));
 }
 
