@@ -20,7 +20,7 @@ Status: planned
       Voraussetzungen (PHP 8.5), git clone-Befehl,
       Desktop-Pfad-Konvention (~/Desktop/speckig), Mac- und Linux-
       Hinweise.
-- [ ] open/0002-bashrc-snippet.md — Shell-Snippet liefern (POSIX-sh
+- [x] archive/0002-bashrc-snippet.md — Shell-Snippet liefern (POSIX-sh
       kompatibel) das in `~/.bashrc` / `~/.zshrc` eingetragen wird;
       definiert Funktion `speckig` die `php -S 127.0.0.1:8083 -t
       <repo>/app` startet. Idempotent (Marker-Kommentar).

@@ -94,3 +94,34 @@ See: CLAUDE.md
 - Installer-Script (0003).
 - Konfigurierbarer Port via Argument.
 - Windows.
+
+## Done
+- `scripts/bashrc-snippet.sh` neu angelegt (1693 Bytes, 47 Zeilen, ohne
+  +x-Bit — wird gesourced, nicht ausgefuehrt).
+- Spec-Kommentar oben dokumentiert Vertrag: gesourcet, definiert nur
+  Funktion (kein Auto-Start), Marker-Kontrakt mit Installer, Verhalten
+  bei keinem / mit Argument, `SPECKIG_ROOT`-Export, Browser-Open mit
+  `xdg-open`/`open`-Fallback (Linux/macOS).
+- Funktionsblock zwischen `# >>> speckig (managed by scripts/install.sh)`
+  und `# <<< speckig` Markern. Beide Zeilen exakt vorhanden.
+- POSIX-sh-Konstrukte: `[ ]` statt `[[ ]]`, `local`, `command -v`.
+
+Files touched:
+- `scripts/bashrc-snippet.sh` (neu).
+- `pm/milestones/016-deployment/milestone.md` (Haekchen + Pfad).
+- Ticket-Move open/ → archive/.
+
+Verifikation:
+- `ls -la scripts/bashrc-snippet.sh` → existiert, kein +x.
+- `bash -n scripts/bashrc-snippet.sh` → clean.
+- `grep -c "^# >>> speckig" scripts/bashrc-snippet.sh` → 1.
+- `grep -c "^# <<< speckig" scripts/bashrc-snippet.sh` → 1.
+- `bash -c '. ./scripts/bashrc-snippet.sh && type speckig'` → "speckig
+  ist eine Funktion." (locale-deutsch, entspricht "is a function").
+- `bash -c '. ./scripts/bashrc-snippet.sh && speckig /tmp/this-does-not-exist'`
+  → exit 1, stderr "speckig: kein app/-Verzeichnis unter
+  /tmp/this-does-not-exist".
+- Kein Test gegen echtes Repo (8083 = User-Server, Memory-Eintrag).
+- `git status` clean nach Close-Commit.
+
+Plan-Abweichungen: keine.
