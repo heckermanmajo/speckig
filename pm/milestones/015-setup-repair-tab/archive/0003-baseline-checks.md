@@ -92,3 +92,67 @@ See: pm/how-to/code_style.md
 - Repair-Endpoints (0004).
 - Hash-Vergleich gegen Baseline (0005).
 - Deployment-Checks (M016/0004).
+
+## Done
+- `setup_checks::CHECKS` von 2 auf 6 Eintraege erweitert (Reihenfolge ==
+  UI-Reihenfolge): `php_version`, `speckig_root`, `repo_path`, `db_file`,
+  `howto_files`, `vendor_files`. Slugs sind stabile snake_case-Ids,
+  `name` ist UI-Label.
+- `check_php_version()` aus 0002 behalten, Hint praeziser: bei zu alter
+  Version `"PHP 8.5+ erforderlich, gefunden: <version>"` (Schwelle
+  `fail` bleibt, kein warn).
+- `check_speckig_root()` aus 0002 unveraendert — bewusst `warn` (nicht
+  `fail`) wenn ungesetzt, weil die Setup-View auch ohne env laeuft.
+- `check_repo_path()` neu: `realpath(__DIR__ . "/../..")` aufloesen,
+  Marker `app/`, `pm/`, `CLAUDE.md` per `file_exists` pruefen. Hint
+  nennt den Pfad und bei `fail` die fehlenden Marker.
+- `check_db_file()` neu: kanonisch `<repo>/app.sqlite` via `is_file`.
+  Streu-Scan rekursiv via `RecursiveDirectoryIterator` + Callback-
+  Filter (`.git/` ausgeschlossen) auf alle Files mit Praefix
+  `app.sqlite`. Schwellen: existiert + keine Streu → `ok`, existiert
+  + Streu → `warn` mit relativen Streu-Pfaden, fehlt → `fail`.
+- `check_howto_files()` neu: 16 Files hart kodiert in
+  `setup_checks::HOWTO_FILES` (Stand `ls pm/how-to/`). Pro Eintrag
+  `file_exists` unter `<repo>/pm/how-to/<name>`. Alle vorhanden →
+  `ok`, fehlt was → `fail` mit Liste fehlender Namen. Hash-Vergleich
+  bleibt fuer 0005.
+- `check_vendor_files()` neu: 12 Pfade hart kodiert in
+  `setup_checks::VENDOR_FILES`. **Abweichung vom Plan**:
+  - CSS-Pfad ist tatsaechlich `app/_share/vendor/css/codemirror.css`
+    (nicht `codemirror.min.css` wie im Plan-Text). Realer Stand laut
+    M013/0001 verbindlich.
+  - Mode-Files liegen unter
+    `app/_share/vendor/js/codemirror-modes/<name>.js` (nicht
+    `js/mode/<name>/<name>.js`). Realer Stand laut M013/0002
+    verbindlich.
+  - 8 Modes statt 7 — `htmlmixed.js` ist Dependency von `php.js`,
+    M013/0002 hat ihn mit vendored.
+  - Spec-Block am `VENDOR_FILES`-Array dokumentiert die Abweichung
+    und verweist auf M013/0001 + 0002 als Wahrheits-Quelle.
+- Alle 6 Checks setzen `can_repair: false, repair_action: ""` —
+  Repair-Wiring kommt in 0004.
+- Spec-Blocks an jeder neuen Check-Methode und an
+  `find_stray_sqlite_files()` mit Vertrag + Status-Schwellen.
+- File-Header-Spec um den Baseline-Kontext (0003) und Verweis auf
+  Wiring (0004) / Hash-Baseline (0005) ergaenzt.
+
+Files touched:
+- `app/_share/setup_checks.php` (4 neue Checks, 2 neue Konstanten,
+  1 Helper, Spec-Blocks).
+- `pm/milestones/015-setup-repair-tab/milestone.md` (Haekchen +
+  archive/-Pfad).
+- Ticket selbst nach `archive/`.
+
+Smoketest-Belege (Server `SPECKIG_ROOT="$(pwd)" php -S 127.0.0.1:8086 -t app`):
+- `php -l app/_share/setup_checks.php` → clean.
+- `curl -s "http://127.0.0.1:8086/setup.php"` → HTTP 200, alle 6
+  Check-Zeilen im HTML sichtbar.
+- `curl -s "http://127.0.0.1:8086/setup.php" | grep -oE 'status-(ok|warn|fail)' | sort | uniq -c`
+  → `6 status-ok` (alle Baseline-Checks gruen auf der Dev-Maschine:
+  PHP 8.5.6, SPECKIG_ROOT gesetzt, app/pm/CLAUDE.md vorhanden,
+  kanonisches app.sqlite, 16/16 how-to-Files, 12/12 Vendor-Files).
+- Streu-File-Check: `find . -name "app.sqlite*" -not -path "./.git/*"`
+  zeigt nur `./app.sqlite`. `find . -name "*.tmp.*" -not -path
+  "./.git/*"` leer.
+- Failure-Simulationen (DB versetzen, how-to umbenennen) bewusst
+  weggelassen — User testet das manuell im Browser.

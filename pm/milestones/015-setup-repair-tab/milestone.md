@@ -18,7 +18,7 @@ Status: planned
 - [x] archive/0002-checks-runner.md — `_share\setup_checks::run()` mit
       einer Liste von Checks; jeder Check liefert `{name, status, hint,
       can_repair, repair_action}`. Status: ok / warn / fail.
-- [ ] open/0003-baseline-checks.md — initiale Checkliste: PHP-Version,
+- [x] archive/0003-baseline-checks.md — initiale Checkliste: PHP-Version,
       SPECKIG_ROOT, Repo-Pfad, Datenbank-File (canonical path,
       siehe Memory), how-to-Files vorhanden + Hashes.
 - [ ] open/0004-repair-actions.md — POST-Endpoint `setup.php?action=
