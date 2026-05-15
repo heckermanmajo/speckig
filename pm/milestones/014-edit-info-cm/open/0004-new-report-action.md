@@ -33,3 +33,61 @@ Template-Inhalt an und oeffnet die Datei im Edit-Mode.
 - Audit-Run aus dem UI.
 
 See: pm/how-to/reports.md
+
+## Plan
+- **Server-Endpoint**: `app/pm.php` bekommt `POST ?action=new_report`.
+  - Body: JSON `{ "slug": "...", "type": "research|audit|comparison" }`.
+  - Slug: gleiches Regex wie 0003 (`[a-z0-9][a-z0-9-]*`, ≤ 80).
+  - Type-Whitelist: `["research", "audit", "comparison"]`. Sonst 400.
+  - **Naechste Nummer ermitteln**: `scandir("pm/reports")`, alle
+    `NNNN-*.md`-Eintraege matchen, max+1, zero-padded auf 4. Bei
+    leer → 1. Analog `new_ticket`-Numbering.
+  - Zielpfad: `pm/reports/<NNNN>-<slug>.md`. Bei Kollision → 409
+    (sollte durch max+1 nicht passieren, aber defensive Schicht).
+  - Template fest verdrahtet (Begruendung wie in 0003):
+    ```
+    # NNNN — <slug-titlecased>
+
+    Date: <today YYYY-MM-DD>
+    Type: <type>
+    Status: draft
+
+    ## TL;DR
+
+    ## Findings
+
+    ## Sources
+
+    ## Hooks for us
+    ```
+  - Datum via `date("Y-m-d")`.
+  - Schreiben atomar via tmp+rename.
+  - Antwort: `{ok:true, path, number:NNNN}`.
+- **Sidebar-UI** in `info.php`: Block in `pm/reports`-Details mit
+  Button `.btn-new-report` und Form `.new-report-form` (Slug-Input +
+  Type-Select).
+- **Sidebar-JS** in `plan_loader.js`: analog 0003, Endpoint
+  `?action=new_report`.
+- **Files touched**: `app/pm.php`, `app/info.php`,
+  `app/_share/js/plan_loader.js`.
+
+## Verifikation
+- `php -l app/pm.php app/info.php` clean.
+- Server `php -S 127.0.0.1:8086 -t app` run_in_background.
+- Browser auf `info.php`:
+  - Reports-Sektion → Button "+ Report" sichtbar.
+  - Submit Slug `plan-smoke` / Type `research` → Datei
+    `pm/reports/<NNNN>-plan-smoke.md` mit korrekter Numerierung
+    (max+1 inklusive existierender Files).
+  - Datei oeffnet im Edit-Mode mit Template-Inhalt; `Date:` ist heute,
+    `Type:` ist `research`, `Status:` ist `draft`.
+  - Cleanup: `rm pm/reports/<NNNN>-plan-smoke.md`.
+- Reject: Type `unknown` → 400.
+- Reject: Slug mit Sonderzeichen → 400.
+- Vor-Pruefung: `ls pm/reports/` zeigt z.B. 0001-0007 → neuer Report
+  bekommt 0008.
+- `git status` clean, keine `*.tmp.*`.
+
+## Out of scope (Plan)
+- Final-Status setzen via UI.
+- Manuelles Setzen der Nummer.
