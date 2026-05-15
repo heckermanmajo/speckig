@@ -177,3 +177,34 @@ article pre { white-space: pre-wrap; word-wrap: break-word; }
 {
     color: #c00;
 }
+
+/* Setup-View (M015/0002) — Check-Ergebnis-Tabelle und Status-Indikatoren.
+ * Die Farben spiegeln das Risiko-Niveau:
+ *  - ok   gruen wie ein erfolgreicher Test,
+ *  - warn dunkles Orange ("guck mal, aber nicht kritisch"),
+ *  - fail rot wie der Delete-Button oben (#c00-Familie). */
+.setup-checks
+{
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.setup-checks th, .setup-checks td
+{
+    border-bottom: 1px solid #eee;
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.setup-checks th
+{
+    font-size: 0.85rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status-ok   { color: #2a8d2a; font-weight: 600; }
+.status-warn { color: #c97a00; font-weight: 600; }
+.status-fail { color: #b00;    font-weight: 600; }

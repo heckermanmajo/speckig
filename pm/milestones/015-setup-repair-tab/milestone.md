@@ -15,7 +15,7 @@ Status: planned
 - [x] archive/0001-setup-tab-route.md — vierten Header-Tab in
       `app/_share/html/header.php` ergaenzen; neue Route `app/setup.php`;
       Header-Active-View `setup` unterstuetzen.
-- [ ] open/0002-checks-runner.md — `_share\setup_checks::run()` mit
+- [x] archive/0002-checks-runner.md — `_share\setup_checks::run()` mit
       einer Liste von Checks; jeder Check liefert `{name, status, hint,
       can_repair, repair_action}`. Status: ok / warn / fail.
 - [ ] open/0003-baseline-checks.md — initiale Checkliste: PHP-Version,

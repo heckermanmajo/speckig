@@ -3,25 +3,36 @@
 declare(strict_types=1);
 
 // @spec
-// Setup/Repair-View (M015/0001): vierte Hauptansicht des Speckig-UI.
-// Diese Seite ist bewusst so robust gebaut, dass sie auch dann etwas
-// Sinnvolles anzeigen kann, wenn die Welt drumherum kaputt ist (kein
-// SPECKIG_ROOT, fehlende how-to-Files, …) — sie ist genau fuer diesen
-// Fall da.
+// Setup/Repair-View (M015/0001, ausgebaut in 0002).
 //
-// Linker Bereich (`<nav>`): in 0001 leer. Die Sidebar (Liste der
-// Self-Checks / Repair-Buttons) kommt in den naechsten Tickets
-// (0002/0003/0004).
-// Rechter Bereich (`<article id="content">`): in 0001 nur ein
-// Placeholder-Hinweis, dass der eigentliche Inhalt noch folgt.
+// Vierte Hauptansicht des Speckig-UI. Bewusst so robust gebaut, dass sie
+// auch dann etwas Sinnvolles anzeigen kann, wenn die Welt drumherum
+// kaputt ist (kein SPECKIG_ROOT, fehlende how-to-Files, ...) — sie ist
+// genau fuer diesen Fall da.
 //
-// Header: `_share\html\header::render("setup", ...)` — vierter Tab
-// nach Files, Plan, Info. Stylesheet: `app/_share/css/app.css`
-// (geteilt mit Tree-, Plan- und Info-View).
+// Linker Bereich (`<nav>`): in 0001/0002 leer. Die Sidebar (Filter / Re-
+// Run / o.ae.) kommt in spaeteren Tickets.
+//
+// Rechter Bereich (`<article id="content">`): seit 0002 wird hier eine
+// Tabelle `<table class="setup-checks">` mit den Ergebnissen von
+// `_share\setup_checks::run()` gerendert.
+//
+// Render-Vertrag fuer ein Check-Result (siehe `app/_share/setup_checks.php`
+// fuer das Schema):
+//   - `status` wird zusaetzlich zum Text-Label als CSS-Klasse
+//     `.status-ok` / `.status-warn` / `.status-fail` auf das `<td>` mit
+//     dem Status-Label gehaengt.
+//   - `name`, `hint`, `repair_action` laufen alle durch `app::escape()`.
+//   - Action-Spalte ist in 0002 leer; Repair-Buttons kommen in 0004.
+//
+// Header: `_share\html\header::render("setup", ...)` — vierter Tab nach
+// Files, Plan, Info. Stylesheet: `app/_share/css/app.css` (geteilt mit
+// Tree-, Plan- und Info-View).
 // @end-spec
 
 use _share\app;
 use _share\html\header;
+use _share\setup_checks;
 
 include $_SERVER["DOCUMENT_ROOT"] . "/_share/init.php";
 
@@ -38,6 +49,13 @@ $header_path_label = "";
 $speckig_root_abs  = realpath(__DIR__ . "/..");
 $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) : "";
 
+# --- Checks ausfuehren -------------------------------------------------------
+# `setup_checks::run()` faengt einzelne Check-Exceptions selbst ab; ein
+# Crash hier waere ein Bug in run() selbst und soll dann auch sichtbar
+# kippen, statt still zu schweigen.
+
+$check_results = setup_checks::run();
+
 ?>
 <!doctype html>
 <html lang="de">
@@ -52,7 +70,29 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 <main>
     <nav></nav>
     <article id="content">
-        <p><?= app::escape("Setup/Repair-Inhalt folgt.") ?></p>
+        <table class="setup-checks">
+            <thead>
+                <tr>
+                    <th scope="col">Status</th>
+                    <th scope="col">Check</th>
+                    <th scope="col">Hint</th>
+                    <th scope="col">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($check_results as $check_result): ?>
+                <?php
+                    $status_class = "status-" . $check_result["status"];
+                ?>
+                <tr>
+                    <td class="<?= app::escape($status_class) ?>"><?= app::escape($check_result["status"]) ?></td>
+                    <td><?= app::escape($check_result["name"]) ?></td>
+                    <td><?= app::escape($check_result["hint"]) ?></td>
+                    <td><!-- repair-buttons kommen in M015/0004 --></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
     </article>
 </main>
 </body>
