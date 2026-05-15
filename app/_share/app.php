@@ -155,9 +155,100 @@ class app
         return [];
     }
 
-    static function function_log(string $message, string $function, string $file, array $data): void 
+    static function function_log(string $message, string $function, string $file, array $data): void
     {
 
+    }
+
+    // @spec
+    // app::pm_write_kind($rel_path): string
+    //
+    // Whitelist-Klassifizierer fuer Info-Schreibziele unter `pm/`.
+    // Liefert eines aus {"idea", "report", "audit", "term", "decision"}
+    // oder den leeren String, falls der Pfad keiner der Info-Whitelists
+    // entspricht.
+    //
+    // Konvention (M014/0001):
+    //   - idea     : ^pm/ideas/[a-z0-9-]+\.md$
+    //   - report   : ^pm/reports/\d{4}-[a-z0-9-]+\.md$
+    //   - audit    : ^pm/audits/[a-z0-9-]+\.md$
+    //   - term     : ^pm/terms/[a-z0-9-]+\.md$
+    //   - decision : ^pm/decisions/\d{4}-[a-z0-9-]+\.md$
+    //
+    // Diese Funktion macht *nur* die Pfad-Klassifizierung. Die
+    // Append-only-Regel fuer `decision` (zweite POST gegen
+    // existierende Datei -> 409) lebt im Save-Handler in
+    // `app/pm.php`, nicht hier.
+    // @end-spec
+    static function pm_write_kind(string $rel_path): string
+    {
+        $patterns = [
+            "idea"     => '#^pm/ideas/[a-z0-9-]+\.md$#',
+            "report"   => '#^pm/reports/\d{4}-[a-z0-9-]+\.md$#',
+            "audit"    => '#^pm/audits/[a-z0-9-]+\.md$#',
+            "term"     => '#^pm/terms/[a-z0-9-]+\.md$#',
+            "decision" => '#^pm/decisions/\d{4}-[a-z0-9-]+\.md$#',
+        ];
+
+        foreach ($patterns as $kind => $pattern)
+        {
+            $path_matches_pattern = preg_match($pattern, $rel_path) === 1;
+
+            if ($path_matches_pattern)
+            {
+                return $kind;
+            }
+        }
+
+        return "";
+    }
+
+    // @spec
+    // app::pm_path_kind_legacy($rel_path): string
+    //
+    // Klassifiziert die *bisher* (M012/0002) erlaubten Schreibziele
+    // unter `pm/milestones/` und `pm/bugs/`. Liefert eines aus
+    // {"milestone", "milestone_ticket", "bug_ticket"} oder den
+    // leeren String.
+    //
+    // Bestehende Schreibflows (Plan-View-Edit von milestone.md, Edit
+    // eines aktiven Tickets unter `open/`) muessen weiter funktionieren;
+    // diese Funktion kapselt die Regeln dafuer, damit der Save-Handler
+    // in pm.php die neue Info-Whitelist UND den Legacy-Pfad
+    // gemeinsam akzeptieren kann.
+    //
+    // Konvention (M014/0001):
+    //   - milestone        : ^pm/milestones/[a-z0-9-]+/milestone\.md$
+    //                        (Archive-Pfad wird hier explizit
+    //                        ausgeschlossen — der Aufrufer hat eh schon
+    //                        die "/archive/"-Schicht davor.)
+    //   - milestone_ticket : ^pm/milestones/[a-z0-9-]+/open/\d{4}-[a-z0-9-]+\.md$
+    //   - bug_ticket       : ^pm/bugs/open/\d{4}-[a-z0-9-]+\.md$
+    //
+    // Bewusst eng gehalten: kein Schreiben in Top-Level wie
+    // `pm/how-to/...`, kein Schreiben in `pm/decisions/` via Legacy
+    // (Decision laeuft ueber pm_write_kind als eigener Pfad mit
+    // Append-only-Regel).
+    // @end-spec
+    static function pm_path_kind_legacy(string $rel_path): string
+    {
+        $patterns = [
+            "milestone"        => '#^pm/milestones/[a-z0-9-]+/milestone\.md$#',
+            "milestone_ticket" => '#^pm/milestones/[a-z0-9-]+/open/\d{4}-[a-z0-9-]+\.md$#',
+            "bug_ticket"       => '#^pm/bugs/open/\d{4}-[a-z0-9-]+\.md$#',
+        ];
+
+        foreach ($patterns as $kind => $pattern)
+        {
+            $path_matches_pattern = preg_match($pattern, $rel_path) === 1;
+
+            if ($path_matches_pattern)
+            {
+                return $kind;
+            }
+        }
+
+        return "";
     }
 
 }

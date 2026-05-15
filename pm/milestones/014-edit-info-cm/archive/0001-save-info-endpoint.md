@@ -107,3 +107,57 @@ See: pm/how-to/decisions.md, pm/how-to/ideas.md, pm/how-to/reports.md
 - Keine Refactoring-Welle in `app/pm.php` — nur die Erweiterung der
   Whitelist und der Decision-Append-only-Pfad.
 - Keine UTF-8-Validierung jenseits Binary-Guard.
+
+## Done
+- `app/_share/app.php` um zwei statische Helper erweitert:
+  - `app::pm_write_kind($rel)` -> `"idea" | "report" | "audit" | "term" |
+    "decision" | ""`. Regex-Whitelist wie im Plan; Audit-/Idea-/Term-
+    Slugs sind `[a-z0-9-]+`, Report-/Decision-Files erzwingen das
+    `NNNN-<slug>`-Praefix.
+  - `app::pm_path_kind_legacy($rel)` -> `"milestone" |
+    "milestone_ticket" | "bug_ticket" | ""`. Kapselt die bisher in
+    pm.php implizit erlaubten Schreibziele (milestone.md, aktive
+    Milestone-Tickets unter `open/`, aktive Bug-Tickets unter
+    `pm/bugs/open/`). `pm/decisions/` taucht in der Legacy-Liste
+    bewusst NICHT auf — Decisions laufen ueber pm_write_kind, damit
+    die Append-only-Schicht greift.
+- `app/pm.php` Save-Handler nach dem bestehenden String-/Markdown-/
+  Archive-Check um folgende Schichten erweitert:
+  - **Whitelist**: `pm_write_kind(...) !== "" || pm_path_kind_legacy(...) !== ""`,
+    sonst 400 `Ungueltiger Pfad.` + Log mit `(whitelist)`-Marker.
+  - **Decision-Append-only**: wenn `pm_write_kind === "decision"` und
+    Zielpfad existiert -> 409 `Decision ist append-only.` + Log.
+    Der Check sitzt nach dem parent-Check und vor dem Body-Read,
+    damit wir keine Bytes umsonst lesen.
+  - **Binary-Guard** (M013/0001-Vorbild): erste 8 KB nach `\0`
+    durchsuchen -> 400 `Binaere Inhalte nicht erlaubt.` + Log.
+- Spec-Block am Datei-Kopf um den M014/0001-Vertrag erweitert,
+  inline `@spec` ueber dem Save-Handler um Whitelist-Tabelle,
+  Decision-Sonderregel und Binary-Guard erweitert.
+- Bestehende Schichten (Pfad-String, `archive/`-Defense, parent-
+  realpath, 1 MB-Limit, atomic tmp+rename, Logging) bleiben
+  unveraendert.
+
+Files touched:
+- `app/_share/app.php` (+95 / -1, zwei neue static helpers + Spec-
+  Blocks).
+- `app/pm.php` (+~80 / -5, Header-Spec + Save-Handler-Spec + neue
+  Whitelist-, Decision-, Binary-Guard-Schichten).
+- `pm/milestones/014-edit-info-cm/milestone.md` (Haekchen +
+  archive/-Pfad).
+- ticket selbst nach `archive/`.
+
+Smoketest-Belege:
+- `php -l app/pm.php app/_share/app.php` -> clean.
+- Happy Idea  `pm/ideas/plan-smoke.md`        -> 200 + `bytes:10`, cat zeigt Body, cleanup.
+- Happy Report `pm/reports/9999-smoke.md`     -> 200 + `bytes:12`, cleanup.
+- Happy Audit `pm/audits/plan-smoke.md`       -> 200 + `bytes:11`, cleanup.
+- Decision create `pm/decisions/9999-smoke.md` -> 200 + `bytes:14`, Inhalt `first decision`.
+- Decision overwrite (zweiter POST)            -> 409 + `Decision ist append-only.`; `cat` zeigt UNVERAENDERTEN Inhalt; cleanup.
+- Reject Whitelist-Miss `pm/how-to/foo.md`     -> 400 + `Ungueltiger Pfad.`.
+- Reject Archive `pm/ideas/archive/foo.md`    -> 400 (greift bereits am Archive-Guard, also vor Whitelist).
+- Reject Traversal `path=../etc/passwd`       -> 400.
+- Binary-Guard NUL-Byte                       -> 400 + `Binaere Inhalte nicht erlaubt.`; `bin-smoke.md` nicht entstanden.
+- Body-Limit ~1.1 MB                          -> 413 + `Body zu gross.`; `big-smoke.md` nicht entstanden.
+- M012 Regression (`pm/milestones/014-edit-info-cm/open/0001-save-info-endpoint.md` ueberschreiben) -> 200 + `bytes:20`, danach via Backup restauriert, `git diff` fuer das File leer.
+- Streu-File-Check: nur `./app.sqlite`; keine `*.tmp.*`.

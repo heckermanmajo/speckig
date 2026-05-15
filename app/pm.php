@@ -4,12 +4,28 @@ declare(strict_types=1);
 
 // @spec
 // JSON-Endpoint fuer den Plan-View AJAX-Loader (M006/0003) plus
-// Save-Endpoint fuer den CodeMirror-Editor (M012/0002) plus
+// Save-Endpoint fuer den CodeMirror-Editor (M012/0002, M014/0001) plus
 // new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005) plus
 // new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
+//                                       Akzeptiert zwei Pfad-Schichten:
+//                                         (a) Info-Whitelist via
+//                                             `app::pm_write_kind()` —
+//                                             pm/ideas/, pm/reports/,
+//                                             pm/audits/, pm/terms/,
+//                                             pm/decisions/.
+//                                         (b) Legacy-Whitelist via
+//                                             `app::pm_path_kind_legacy()` —
+//                                             milestone.md, aktive
+//                                             Milestone-Tickets unter
+//                                             open/, aktive Bug-Tickets
+//                                             unter pm/bugs/open/.
+//                                       Decisions sind append-only
+//                                       (zweite POST gegen existierende
+//                                       Datei -> 409, siehe
+//                                       pm/how-to/decisions.md).
 // POST ?action=new_milestone         -> Neuen Milestone-Folder anlegen.
 //                                       Body JSON: {slug, title}.
 //                                       Antwort: {ok:true, slug, path}.
@@ -20,7 +36,7 @@ declare(strict_types=1);
 //                                       Antwort: {ok:true, slug, path}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
-// Fehler : HTTP 400/409/500 + { ok: false, message }.
+// Fehler : HTTP 400/409/413/500 + { ok: false, message }.
 //
 // `status`-Ableitung (GET):
 //   - Tickets unter `pm/.../open/...` -> "open"
@@ -740,13 +756,37 @@ if ($method_is_post && $action_is_save)
     //   - Pfad-Regeln wie GET (`pm/`-Prefix, kein `..`, kein fuehrender
     //     `/`, Endung `.md`).
     //   - `archive/`-Pfade werden defensiv abgelehnt (M012 erlaubt nur
-    //     Edit ausserhalb `archive/`).
+    //     Edit ausserhalb `archive/`). Diese Schicht greift VOR jeder
+    //     Whitelist; M014/0006 macht den Archive-Schutz zur expliziten
+    //     Doppelschicht.
+    //   - Pfad-Whitelist (M014/0001): Save akzeptiert genau dann, wenn
+    //     `app::pm_write_kind($path)` !== "" ODER
+    //     `app::pm_path_kind_legacy($path)` !== "".
+    //       * pm_write_kind klassifiziert die neuen Info-Schreibziele:
+    //         pm/ideas/<slug>.md, pm/reports/NNNN-<slug>.md,
+    //         pm/audits/<slug>.md, pm/terms/<slug>.md,
+    //         pm/decisions/NNNN-<slug>.md.
+    //       * pm_path_kind_legacy klassifiziert die bisher schon
+    //         erlaubten Pfade: pm/milestones/<ms>/milestone.md,
+    //         pm/milestones/<ms>/open/NNNN-<slug>.md,
+    //         pm/bugs/open/NNNN-<slug>.md.
+    //     Faellt der Pfad in keine der beiden Schichten -> 400.
+    //   - Decision-Sonderregel (append-only, siehe
+    //     pm/how-to/decisions.md): wenn pm_write_kind === "decision"
+    //     UND die Zieldatei bereits existiert -> 409
+    //     `Decision ist append-only.`. Supersede via neue
+    //     pm/decisions/-Datei mit naechsthoeherer Nummer.
     //   - Parent-Verzeichnis muss existieren und innerhalb Repo-Root sein;
     //     die Zieldatei selbst darf neu sein.
+    //   - Binary-Guard (M013/0001-Vorbild): erste 8 KB des Bodys werden
+    //     auf `\0`-Bytes geprueft. Treffer -> 400
+    //     `Binaere Inhalte nicht erlaubt.`. Verhindert, dass binaere
+    //     Inhalte (z.B. versehentlich als Datei hochgeladen) Markdown-
+    //     Files zerstoeren, ohne UTF-8-Validierung zu bauen.
     //   - Max 1 MB Body, sonst 413.
     //   - Schreiben atomar via tmp+rename.
     //   - Antwort: 200 + {ok:true, path, bytes} bei Erfolg,
-    //     400/413/500 + {ok:false, message} bei Fehler.
+    //     400/409/413/500 + {ok:false, message} bei Fehler.
     //   - Jede Abweisung wird via app::error_log() protokolliert.
     // @end-spec
 
@@ -795,6 +835,28 @@ if ($method_is_post && $action_is_save)
         ]));
     }
 
+    # Pfad-Whitelist (M014/0001): Save akzeptiert nur Pfade, die entweder
+    # in die neue Info-Whitelist (`pm_write_kind`) oder in die bisher
+    # geltende Legacy-Whitelist (`pm_path_kind_legacy`) fallen. Faellt der
+    # Pfad in keine der beiden Schichten, lehnen wir ab. Decisions werden
+    # weiter unten — nach dem parent-Check — auf Append-only geprueft.
+    $save_kind        = app::pm_write_kind($save_raw_path);
+    $save_legacy_kind = app::pm_path_kind_legacy($save_raw_path);
+
+    $save_kind_is_info     = $save_kind !== "";
+    $save_kind_is_legacy   = $save_legacy_kind !== "";
+    $save_path_is_writable = $save_kind_is_info || $save_kind_is_legacy;
+
+    if (! $save_path_is_writable)
+    {
+        app::error_log("pm.php save rejected path (whitelist): " . $save_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
+
     # parent-Check: das Verzeichnis muss existieren, und realpath des
     # Parents muss innerhalb Repo-Root liegen. Damit sind neue Files in
     # bestehenden Ordnern erlaubt, ein "Magic Path" auf neue Verzeichnisse
@@ -819,6 +881,24 @@ if ($method_is_post && $action_is_save)
         exit(json_encode([
             "ok"      => false,
             "message" => "Ungueltiger Pfad.",
+        ]));
+    }
+
+    # Decision-Sonderregel (append-only): zweite POST auf eine bestehende
+    # Decision-Datei wird hart abgelehnt. Supersede laeuft ueber das
+    # Anlegen einer neuen pm/decisions/-Datei (siehe
+    # pm/how-to/decisions.md).
+    $save_kind_is_decision      = $save_kind === "decision";
+    $save_target_abs_for_check  = $repo_root_abs . "/" . $save_raw_path;
+    $save_decision_exists       = $save_kind_is_decision && file_exists($save_target_abs_for_check);
+
+    if ($save_decision_exists)
+    {
+        app::error_log("pm.php save rejected decision overwrite: " . $save_raw_path);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Decision ist append-only.",
         ]));
     }
 
@@ -847,6 +927,23 @@ if ($method_is_post && $action_is_save)
         exit(json_encode([
             "ok"      => false,
             "message" => "Body zu gross.",
+        ]));
+    }
+
+    # Binary-Guard (M013/0001-Vorbild): erste 8 KB des Bodys auf NUL-Bytes
+    # pruefen — wenn vorhanden, lehnen wir ab. So vermeiden wir, dass
+    # binaere Inhalte (z.B. versehentlicher Upload eines Bildes) die
+    # Markdown-Datei zerstoeren, ohne dass wir UTF-8-Validierung bauen.
+    $body_head         = substr($body, 0, 8192);
+    $body_is_binary    = str_contains($body_head, "\0");
+
+    if ($body_is_binary)
+    {
+        app::error_log("pm.php save body looks binary for: " . $save_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Binaere Inhalte nicht erlaubt.",
         ]));
     }
 
