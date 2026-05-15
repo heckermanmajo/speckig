@@ -13,7 +13,7 @@ Liefer-Artefakte: ein dokumentierter Install-Pfad (README oder
 how-to-Datei), ein wiederholbares Shell-Snippet, und Setup/Repair-
 Checks (M015) die zeigen, dass die Bashrc-Integration funktioniert.
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-install-howto.md — `pm/how-to/install.md` schreiben:
@@ -28,7 +28,7 @@ Status: planned
       `scripts/install.sh`): prueft Pfad, fragt nach Repo-URL,
       schreibt Bashrc-Snippet idempotent rein, druckt naechste
       Schritte.
-- [ ] open/0004-setup-checks-deployment.md — Setup/Repair-Tab (M015)
+- [x] archive/0004-setup-checks-deployment.md — Setup/Repair-Tab (M015)
       erweitert um Checks: ist die `speckig`-Funktion in der aktiven
       Shell verfuegbar? Liegt das Repo unter ~/Desktop/speckig? Wird
       Port 8083 schon belegt? Repair-Actions wo sinnvoll.

@@ -56,12 +56,15 @@ class setup_checks
     // Reihenfolge in dieser Liste = Reihenfolge in der UI-Tabelle.
     // @end-spec
     const CHECKS = [
-        ["php_version",    "PHP-Version >= 8.5",   [self::class, "check_php_version"]],
-        ["speckig_root",   "SPECKIG_ROOT gesetzt", [self::class, "check_speckig_root"]],
-        ["repo_path",      "Repo-Pfad erreichbar", [self::class, "check_repo_path"]],
-        ["db_file",        "DB-Datei am kanonischen Ort",   [self::class, "check_db_file"]],
-        ["howto_baseline", "pm/how-to-Files vs Baseline",   [self::class, "check_howto_baseline"]],
-        ["vendor_files",   "Vendor-Files vorhanden",        [self::class, "check_vendor_files"]],
+        ["php_version",           "PHP-Version >= 8.5",            [self::class, "check_php_version"]],
+        ["speckig_root",          "SPECKIG_ROOT gesetzt",          [self::class, "check_speckig_root"]],
+        ["repo_path",             "Repo-Pfad erreichbar",          [self::class, "check_repo_path"]],
+        ["db_file",               "DB-Datei am kanonischen Ort",   [self::class, "check_db_file"]],
+        ["howto_baseline",        "pm/how-to-Files vs Baseline",   [self::class, "check_howto_baseline"]],
+        ["vendor_files",          "Vendor-Files vorhanden",        [self::class, "check_vendor_files"]],
+        ["speckig_shell_function", "speckig-Shellfunktion eingerichtet", [self::class, "check_speckig_shell_function"]],
+        ["repo_path_default",     "Repo-Pfad == ~/Desktop/speckig (Default)", [self::class, "check_repo_path_default"]],
+        ["port_8083",             "Port 8083 frei",                [self::class, "check_port_8083"]],
     ];
 
     // @spec
@@ -706,6 +709,249 @@ class setup_checks
             "name"          => $name,
             "status"        => "fail",
             "hint"          => "Fehlende Vendor-Files: " . implode(", ", $missing_paths),
+            "can_repair"    => false,
+            "repair_action" => "",
+        ];
+    }
+
+    // @spec
+    // check_speckig_shell_function(): array
+    //
+    // Heuristik fuer Deployment-Check (M016/0004): wurde das
+    // Bashrc-/Zshrc-Snippet aus `scripts/bashrc-snippet.sh` (M016/0002)
+    // installiert? Sucht in `~/.bashrc` UND `~/.zshrc` nach dem Marker
+    // `# >>> speckig`. `getenv("HOME")` als Basis; faellt `HOME` weg,
+    // gilt das als nicht-installierbar — `warn` mit entsprechendem Hint.
+    //
+    // Vertrag:
+    //   - status=ok   → Marker in mindestens einer Datei gefunden. Hint
+    //     nennt die Datei(en), in denen der Marker steckt.
+    //   - status=warn → kein Marker in irgendeiner gepruefte Datei (oder
+    //     beide fehlen). Hint verweist auf `scripts/install.sh` (siehe
+    //     `pm/how-to/install.md`).
+    //
+    // Bewusst KEIN `fail`: User kann die Funktion auch via anderem
+    // Mechanismus haben (eigener Wrapper, direkter `php -S`-Aufruf).
+    // Bewusst KEIN Repair: der Server soll keine Shell-Configs
+    // schreiben — Reparatur ist Userin-Aufgabe via `scripts/install.sh`.
+    // @end-spec
+    static function check_speckig_shell_function(): array
+    {
+        $name = "speckig-Shellfunktion eingerichtet";
+
+        $home_dir = getenv("HOME");
+
+        $home_is_set = is_string($home_dir) && $home_dir !== "";
+
+        if (! $home_is_set)
+        {
+            return [
+                "name"          => $name,
+                "status"        => "warn",
+                "hint"          => "HOME-Umgebungsvariable ist leer — Shell-Configs nicht pruefbar.",
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
+
+        $candidate_configs = [
+            $home_dir . "/.bashrc",
+            $home_dir . "/.zshrc",
+        ];
+
+        $marker_needle = "# >>> speckig";
+
+        $matches = [];
+
+        foreach ($candidate_configs as $config_path)
+        {
+            $config_exists = is_file($config_path);
+
+            if (! $config_exists)
+            {
+                continue;
+            }
+
+            $contents = @file_get_contents($config_path);
+
+            $read_ok = is_string($contents);
+
+            if (! $read_ok)
+            {
+                continue;
+            }
+
+            $marker_found = str_contains($contents, $marker_needle);
+
+            if ($marker_found)
+            {
+                $matches[] = $config_path;
+            }
+        }
+
+        $marker_seen = count($matches) > 0;
+
+        if ($marker_seen)
+        {
+            return [
+                "name"          => $name,
+                "status"        => "ok",
+                "hint"          => "Marker `# >>> speckig` gefunden in: " . implode(", ", $matches),
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
+
+        return [
+            "name"          => $name,
+            "status"        => "warn",
+            "hint"          => "Marker `# >>> speckig` weder in ~/.bashrc noch in ~/.zshrc. "
+                . "Snippet via scripts/install.sh einrichten (siehe pm/how-to/install.md).",
+            "can_repair"    => false,
+            "repair_action" => "",
+        ];
+    }
+
+    // @spec
+    // check_repo_path_default(): array
+    //
+    // Deployment-Check (M016/0004): liegt das Repo am Default-Pfad
+    // `$HOME/Desktop/speckig`? Tatsaechlicher Repo-Root via
+    // `realpath(__DIR__ . "/../..")` aufgeloest, gegen den Default
+    // verglichen.
+    //
+    // Bewusst getrennt von `check_repo_path()` (Existenz + Marker-
+    // Pruefung): hier geht es um die Konvention, nicht um die Funktion.
+    //
+    // Vertrag:
+    //   - status=ok   → Repo-Root == `$HOME/Desktop/speckig`.
+    //   - status=warn → Repo-Root abweichend ODER Repo-Root /
+    //     HOME-Aufloesung schlaegt fehl. Hint nennt beide Pfade
+    //     (erwartet vs. tatsaechlich).
+    //
+    // KEIN `fail` — Userin darf das Repo bewusst woanders ablegen
+    // (siehe `pm/how-to/install.md`). Der Default ist Komfort, kein
+    // Zwang.
+    //
+    // KEIN Repair — eine Repo-Verschiebung soll nicht aus dem UI
+    // passieren.
+    // @end-spec
+    static function check_repo_path_default(): array
+    {
+        $name = "Repo-Pfad == ~/Desktop/speckig (Default)";
+
+        $repo_root_abs = realpath(__DIR__ . "/../..");
+
+        $repo_root_resolved = is_string($repo_root_abs) && is_dir($repo_root_abs);
+
+        $home_dir = getenv("HOME");
+
+        $home_is_set = is_string($home_dir) && $home_dir !== "";
+
+        if (! $home_is_set || ! $repo_root_resolved)
+        {
+            $actual_label = $repo_root_resolved ? $repo_root_abs : "<unaufloesbar>";
+
+            return [
+                "name"          => $name,
+                "status"        => "warn",
+                "hint"          => "HOME oder Repo-Root nicht aufloesbar. Erwartet: "
+                    . "\$HOME/Desktop/speckig — tatsaechlich: " . $actual_label . ".",
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
+
+        $expected_path = $home_dir . "/Desktop/speckig";
+
+        # Normalisieren ueber realpath, damit Symlinks und trailing
+        # Slashes nicht zu False-Negatives fuehren. Wenn der erwartete
+        # Pfad nicht existiert, faellt realpath() auf false zurueck —
+        # dann vergleichen wir literal.
+        $expected_realpath = realpath($expected_path);
+
+        $expected_for_compare = $expected_realpath !== false ? $expected_realpath : $expected_path;
+
+        $paths_match = $repo_root_abs === $expected_for_compare;
+
+        if ($paths_match)
+        {
+            return [
+                "name"          => $name,
+                "status"        => "ok",
+                "hint"          => "Repo-Root liegt am Default-Pfad: " . $repo_root_abs,
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
+
+        return [
+            "name"          => $name,
+            "status"        => "warn",
+            "hint"          => "Erwartet: " . $expected_path
+                . " — tatsaechlich: " . $repo_root_abs
+                . ". Abweichung ist ok, der Default ist Komfort (siehe pm/how-to/install.md).",
+            "can_repair"    => false,
+            "repair_action" => "",
+        ];
+    }
+
+    // @spec
+    // check_port_8083(): array
+    //
+    // Deployment-Check (M016/0004): ist der Default-Port 8083 (der vom
+    // `speckig`-Shell-Snippet gebunden wird) gerade frei? Belegung ist
+    // legitim — entweder laeuft schon eine Speckig-Instanz oder eine
+    // fremde App haengt auf 8083 — daher `warn`, nicht `fail`.
+    //
+    // Probing via `@fsockopen("127.0.0.1", 8083, ..., 0.5)`. Timeout
+    // bewusst kurz (0.5 Sekunden), damit der Setup-Tab nicht haengt,
+    // wenn auf 8083 ein zickiger Service antwortet. `@` unterdrueckt das
+    // PHP-Warning bei refused connection — die Info kommt sauberer ueber
+    // den `$errno`-Code zurueck.
+    //
+    // Vertrag:
+    //   - status=ok   → Connection refused / Timeout → Port 8083 frei.
+    //   - status=warn → Connection erfolgreich → Port belegt. Hint
+    //     nennt die wahrscheinliche Ursache (laeuft schon ein Speckig?).
+    //
+    // KEIN `fail`. KEIN Repair (Killen eines fremden Prozesses aus dem
+    // UI ist out-of-scope).
+    //
+    // Achtung beim Testen: laeuft die Setup-View auf 8083 selber, ist
+    // der Port natuerlich belegt. Im Smoketest wird daher Port 8086
+    // benutzt (siehe Ticket).
+    // @end-spec
+    static function check_port_8083(): array
+    {
+        $name = "Port 8083 frei";
+
+        $errno  = 0;
+        $errstr = "";
+
+        $socket = @fsockopen("127.0.0.1", 8083, $errno, $errstr, 0.5);
+
+        $port_is_busy = $socket !== false;
+
+        if ($port_is_busy)
+        {
+            # Verbindung steht → Port belegt. Sauber schliessen, damit
+            # kein Half-Open am anderen Ende haengt.
+            @fclose($socket);
+
+            return [
+                "name"          => $name,
+                "status"        => "warn",
+                "hint"          => "Port 8083 ist belegt — laeuft schon ein Speckig?",
+                "can_repair"    => false,
+                "repair_action" => "",
+            ];
+        }
+
+        return [
+            "name"          => $name,
+            "status"        => "ok",
+            "hint"          => "Port 8083 frei (Connection refused).",
             "can_repair"    => false,
             "repair_action" => "",
         ];

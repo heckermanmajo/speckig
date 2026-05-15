@@ -94,3 +94,61 @@ See: pm/milestones/015-setup-repair-tab/milestone.md
 - Repair-Aktionen fuer Deployment.
 - Multi-Instanz-Detection.
 - Telemetry / Phone-home.
+
+## Done
+- Drei neue Checks in `app/_share/setup_checks.php` plus Registrierung
+  in `CHECKS` — Reihenfolge hinter den M015-Baseline-Checks:
+  - `check_speckig_shell_function()`: Marker `# >>> speckig` in
+    `$HOME/.bashrc` und `$HOME/.zshrc` via `str_contains()`. Existenz
+    der Configs ist optional (eine reicht). `ok` falls Marker in einer
+    Datei, sonst `warn` mit Hint auf `scripts/install.sh`. Wenn `HOME`
+    leer ist → `warn` "nicht pruefbar". Kein `can_repair`.
+  - `check_repo_path_default()`: vergleicht `realpath(__DIR__/../..)`
+    gegen `$HOME/Desktop/speckig`. Realpath-Normalisierung auch fuer
+    den Erwartungs-Pfad, damit Symlinks nicht falsch warnen; fallback
+    auf literal compare wenn der Default nicht existiert. `warn`, kein
+    `fail` — Konvention, nicht Zwang. Kein Repair.
+  - `check_port_8083()`: `@fsockopen("127.0.0.1", 8083, ..., 0.5)`;
+    Connection → `warn` "laeuft schon ein Speckig?", refused → `ok`.
+    Socket wird `@fclose()`d falls offen. Kein Repair.
+- Spec-Bloecke (Vertrag, Status-Mapping, "kein Repair"-Begruendung) an
+  jedem neuen Check.
+- Kein neuer Repair-Endpoint und kein neuer Eintrag in `REPAIR_IDS` —
+  alle drei Checks sind explizit `can_repair:false`.
+
+Files touched:
+- `app/_share/setup_checks.php` (3 neue Check-Methoden, 3 neue
+  Registrierungen).
+- `pm/milestones/016-deployment/milestone.md` (Haekchen 0004 +
+  `Status: planned` → `Status: done`).
+- Ticket-Move `open/0004-setup-checks-deployment.md` →
+  `archive/0004-setup-checks-deployment.md`.
+- Milestone-Move `pm/milestones/016-deployment` →
+  `pm/milestones/archive/016-deployment` (schliesst M016 ab).
+
+Verifikation (Plan-konform):
+- `php -l app/_share/setup_checks.php` → "No syntax errors detected".
+- Server `SPECKIG_ROOT="$(pwd)" php -S 127.0.0.1:8086 -t app` (NIE
+  8083), Smoketest gegen `/setup.php`:
+  - `grep -oE 'status-(ok|warn|fail)' | sort | uniq -c` → `7 ok`,
+    `2 warn`, 0 fail. Total 9 Checks (6 Baseline + 3 neu), Sanity-
+    Zaehler `<tr>` → 10 (inkl. Header).
+  - Shell-Function-Check: `warn` (Marker fehlt in `~/.bashrc`, kein
+    `~/.zshrc` auf dem Rechner) — wie erwartet.
+  - Repo-Path-Default: `warn` (Repo liegt unter
+    `/home/mo/Schreibtisch/speckig`, nicht `~/Desktop/speckig`).
+  - Port 8083: `ok` (User-Server lief zur Test-Zeit nicht).
+- Streu-File-Check: `find … -name "app.sqlite*"` zeigt nur die
+  kanonische `/home/mo/Schreibtisch/speckig/app.sqlite`.
+- 8086-Server am Ende via `TaskStop`. 8083 nicht angefasst.
+- `git status` clean nach Close-Commit.
+
+Plan-Abweichungen:
+- Slug fuer Default-Pfad-Check ist `repo_path_default` (Ticket-Plan
+  hatte `check_repo_path` als Methoden-Namen vorgeschlagen, das wuerde
+  mit dem bestehenden Baseline-Check aus M015/0003 kollidieren — der
+  Subagent-Prompt hat das schon angefragt und gibt freie Hand).
+- `check_speckig_shell_function` matcht den Marker als Substring
+  (`str_contains`), nicht als Zeilenanfang. Damit deckt der Check auch
+  den realen Snippet-Marker `# >>> speckig (managed by scripts/install.sh)`
+  aus M016/0002 ab — `^# >>> speckig$` waere zu strikt.
