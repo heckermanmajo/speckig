@@ -92,3 +92,51 @@ See: pm/how-to/process.md
 - Auto-clone des Repos.
 - `speckig update`.
 - Systemd / launchd.
+
+## Done
+- `scripts/install.sh` neu angelegt, `+x`, mit Block-Spec-Kommentar
+  oben (Vertrag, Idempotenz-Garantie via Marker, was es NICHT macht).
+- Schritte 1-7 wie geplant: PHP-Check (`command -v`), Versions-Check
+  (`PHP_VERSION_ID >= 80500`), Shell-Erkennung via `case "$SHELL"`,
+  interaktiver Fallback bei unbekannter Shell mit `~`-Expansion,
+  Marker-Check `grep -q "^# >>> speckig"`, Diff-Print + `y/N`-Prompt,
+  Append (`printf '\n' >> "$target"; cat snippet >> "$target"`),
+  Next-Steps mit `source` und `speckig`-Aufruf.
+- Idempotenz: Marker-Match auf `^# >>> speckig` (Praefix, weil Snippet
+  den Suffix ` (managed by scripts/install.sh)` traegt). Zweiter Lauf
+  ist No-Op.
+- Marker NICHT umbenannt — geteilt mit `scripts/bashrc-snippet.sh`
+  (0002), Spec-Kommentar oben warnt vor Umbenennung.
+
+Files touched:
+- `scripts/install.sh` (neu, +x).
+- `pm/milestones/016-deployment/milestone.md` (Haekchen + Pfad).
+- Ticket-Move open/ → archive/.
+
+Verifikation (alle Sandbox, NIE die echte `~/.bashrc` angefasst):
+- `bash -n scripts/install.sh` clean.
+- `ls -l scripts/install.sh` zeigt `-rwxrwxr-x`.
+- Sandbox-Test 1 (Erstinstallation):
+  `HOME=/tmp/fakehome-m16-test SHELL=/bin/bash bash -c 'echo y | ./scripts/install.sh'`
+  → Output mit Next-Steps, `grep -c "^# >>> speckig"` → 1.
+- Sandbox-Test 2 (Idempotenz): zweiter Lauf meldet "Snippet schon
+  eingerichtet (Marker gefunden in …). Nichts geaendert.", exit 0,
+  `grep -c` immer noch 1.
+- Sandbox-Test 3 (PHP fehlt): PATH ohne `php` → exit 1, stderr "Bitte
+  PHP 8.5+ installieren, siehe pm/how-to/install.md", `.bashrc` nicht
+  veraendert.
+- Cleanup: `rm -rf /tmp/fakehome-m16-*` `/tmp/sandbox-bin-m16` →
+  `find /tmp -maxdepth 2 -name "fakehome-m16-*"` leer.
+- Echte `~/.bashrc` des Users: `grep -c "^# >>> speckig" ~/.bashrc`
+  → 0. Nicht angefasst.
+- `git status`: clean nach Close-Commit.
+
+Plan-Abweichungen:
+- Marker-Pattern: Plan-Beispiel im Ticket schrieb `grep -q "^# >>>
+  speckig"` ohne `$`, das ist auch das, was ich verwende — sonst wuerde
+  der Marker-Suffix ` (managed by …)` aus 0002 nicht matchen. Die
+  Verifikations-Beispiele mit `^# >>> speckig$` in der Plan-Section
+  treffen die Datei nicht; `^# >>> speckig` (ohne `$`) ist korrekt
+  und ergibt 1.
+- Bei unbekannter Shell wird `~` im User-Input expandiert (ohne `eval`),
+  damit `~/.zshrc` als Eingabe wie erwartet funktioniert.

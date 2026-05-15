@@ -24,7 +24,7 @@ Status: planned
       kompatibel) das in `~/.bashrc` / `~/.zshrc` eingetragen wird;
       definiert Funktion `speckig` die `php -S 127.0.0.1:8083 -t
       <repo>/app` startet. Idempotent (Marker-Kommentar).
-- [ ] open/0003-installer-script.md — `bin/install.sh` (oder
+- [x] archive/0003-installer-script.md — `bin/install.sh` (oder
       `scripts/install.sh`): prueft Pfad, fragt nach Repo-URL,
       schreibt Bashrc-Snippet idempotent rein, druckt naechste
       Schritte.
