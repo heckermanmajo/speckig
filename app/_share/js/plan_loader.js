@@ -281,6 +281,17 @@
     // gar nicht; die neue Decision-Datei kommt ueber ein eigenes Ticket
     // (M014/0005). Server-Seite blockt zusaetzlich (M014/0001), aber die
     // UI-Schicht spart dem User den Klick.
+    //
+    // Archive-Read-only (M014/0006): die hier verwendete
+    // `indexOf("/archive/")`-Heuristik ist absichtlich grob — sie faengt
+    // mehr als noetig (z.B. auch unsinnige Pfade mit "/archive/" im
+    // Namen). Das ist harmlos, weil die WAHRHEIT in der Server-Schicht
+    // sitzt: `app::is_archive_path()` in `app/_share/app.php` matched
+    // exakt pm/<x>/.../archive/..., pm/milestones/archive/...,
+    // pm/bugs/archive/... und wird von pm.php (save, new_idea,
+    // new_report, new_decision, new_ticket) sowie file.php (save,
+    // new_file, delete_file) als Hard-Guard verwendet. UI-Schicht ist
+    // nur Komfort.
 
     function render_toolbar(article_element)
     {

@@ -204,6 +204,66 @@ class app
     }
 
     // @spec
+    // app::is_archive_path($rel_path): bool
+    //
+    // Hard-Guard fuer M014/0006: liefert true genau dann, wenn der Pfad
+    // unter einem archivierten Bereich liegt. Wahrheit fuer die Server-
+    // Schicht — alle Schreib-/Loesch-Endpunkte (pm.php save, pm.php
+    // new_idea/new_report/new_decision/new_ticket/new_milestone, file.php
+    // save/new_file/delete_file) lehnen Archiv-Pfade hart mit 400 ab.
+    //
+    // Regeln:
+    //   - true wenn `pm/<x>/.../archive/...` matched — das Segment
+    //     `archive` muss als Verzeichnis-Bestandteil unterhalb von
+    //     `pm/<x>/` stehen. Regex `^pm/[^/]+/(.*/)?archive(/|$)`.
+    //     Beispiele:
+    //       * `pm/ideas/archive/foo.md` -> true
+    //       * `pm/milestones/014-foo/archive/0001-x.md` -> true
+    //       * `pm/milestones/archive/013-x/milestone.md` -> true (faellt
+    //         auch hier rein, weil `archive` direkt unter
+    //         `pm/milestones/` liegt; der explizite Prefix-Check unten
+    //         ist defensiv-redundant)
+    //   - true wenn der Pfad mit `pm/milestones/archive/` startet
+    //     (archivierter Milestone als Folder, M013-Stil; redundant zur
+    //     Regex, defensive Doppelschicht).
+    //   - true wenn der Pfad mit `pm/bugs/archive/` startet (redundant
+    //     zur Regex, defensive Doppelschicht).
+    //   - sonst false.
+    //
+    // Bewusst: matched NICHT `pm/decisions/0001-archive.md` und
+    // aehnliche Substring-Treffer — das Segment `archive` muss als
+    // Verzeichnis stehen, nicht als Teil eines Dateinamens.
+    // @end-spec
+    static function is_archive_path(string $rel_path): bool
+    {
+        $under_milestone_internal_archive =
+            preg_match('#^pm/[^/]+/(.*/)?archive(/|$)#', $rel_path) === 1;
+
+        if ($under_milestone_internal_archive)
+        {
+            return true;
+        }
+
+        $under_milestones_archive_folder =
+            str_starts_with($rel_path, "pm/milestones/archive/");
+
+        if ($under_milestones_archive_folder)
+        {
+            return true;
+        }
+
+        $under_bugs_archive_folder =
+            str_starts_with($rel_path, "pm/bugs/archive/");
+
+        if ($under_bugs_archive_folder)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    // @spec
     // app::pm_path_kind_legacy($rel_path): string
     //
     // Klassifiziert die *bisher* (M012/0002) erlaubten Schreibziele

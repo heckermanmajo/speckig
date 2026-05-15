@@ -7,7 +7,7 @@ etc. Wichtig: Decisions bleiben **append-only** (siehe Decision-How-to);
 die Action ist "neue Decision-Datei anlegen", nicht "alte Decision
 editieren". Archivierte Tickets bleiben ebenfalls read-only.
 
-Status: planned
+Status: done
 
 ## Tickets
 - [x] archive/0001-save-info-endpoint.md — schreibender Endpoint fuer
@@ -23,7 +23,7 @@ Status: planned
       naechste globale Nummer, Template aus pm/how-to/decisions.md.
       Edit bestehender Decisions bleibt verboten (Supersede via neue
       Datei).
-- [ ] open/0006-archive-readonly.md — Hard-Guard: keine Schreib-
+- [x] archive/0006-archive-readonly.md — Hard-Guard: keine Schreib-
       Operation auf `pm/**/archive/` oder
       `pm/milestones/archive/**`. UI versteckt Edit-Button dort.
 

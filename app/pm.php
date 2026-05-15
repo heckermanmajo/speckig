@@ -32,6 +32,12 @@ declare(strict_types=1);
 //                                       (zweite POST gegen existierende
 //                                       Datei -> 409, siehe
 //                                       pm/how-to/decisions.md).
+//                                       Archive-Guard (M014/0006) ueber
+//                                       `app::is_archive_path()` -> 400
+//                                       fuer alle archivierten Pfade.
+//                                       Gilt auch fuer alle new_*-
+//                                       Handler unten als defensive
+//                                       Schicht.
 // POST ?action=new_milestone         -> Neuen Milestone-Folder anlegen.
 //                                       Body JSON: {slug, title}.
 //                                       Antwort: {ok:true, slug, path}.
@@ -215,6 +221,22 @@ if ($method_is_post && $action_is_new_idea)
 
     $ni_file_rel = "pm/ideas/" . $ni_slug . ".md";
     $ni_file_abs = $repo_root_abs . "/" . $ni_file_rel;
+
+    # Archive-Guard (M014/0006): Defensive Schicht — Zielpfad darf nie
+    # unter einem archivierten Bereich landen. Ueber den Slug-Regex
+    # (`^[a-z0-9][a-z0-9-]*$`) ist das ohnehin nicht direkt triggerbar,
+    # aber der Server bleibt die Wahrheit ueber Archive-Read-only.
+    $ni_target_is_archive = app::is_archive_path($ni_file_rel);
+
+    if ($ni_target_is_archive)
+    {
+        app::error_log("pm.php new_idea rejected archive target: " . $ni_file_rel);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
 
     # Kollision: schon vorhandene Idea wird nicht ueberschrieben.
     $ni_file_collision = file_exists($ni_file_abs);
@@ -447,6 +469,22 @@ if ($method_is_post && $action_is_new_report)
 
     $nr_file_rel = "pm/reports/" . $nr_file_nnnn . "-" . $nr_slug . ".md";
     $nr_file_abs = $repo_root_abs . "/" . $nr_file_rel;
+
+    # Archive-Guard (M014/0006): Defensive Schicht — Zielpfad darf nie
+    # unter einem archivierten Bereich landen. Ueber den festen
+    # `pm/reports/`-Prefix nicht direkt triggerbar, aber Server bleibt
+    # die Wahrheit ueber Archive-Read-only.
+    $nr_target_is_archive = app::is_archive_path($nr_file_rel);
+
+    if ($nr_target_is_archive)
+    {
+        app::error_log("pm.php new_report rejected archive target: " . $nr_file_rel);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
 
     # Kollisionspruefung (defensive Schicht — max+1 sollte das nie treffen).
     $nr_file_collision = file_exists($nr_file_abs);
@@ -705,6 +743,22 @@ if ($method_is_post && $action_is_new_decision)
 
     $nd_file_rel = "pm/decisions/" . $nd_file_nnnn . "-" . $nd_slug . ".md";
     $nd_file_abs = $repo_root_abs . "/" . $nd_file_rel;
+
+    # Archive-Guard (M014/0006): Defensive Schicht — Zielpfad darf nie
+    # unter einem archivierten Bereich landen. Ueber den festen
+    # `pm/decisions/`-Prefix nicht direkt triggerbar, aber Server bleibt
+    # die Wahrheit ueber Archive-Read-only.
+    $nd_target_is_archive = app::is_archive_path($nd_file_rel);
+
+    if ($nd_target_is_archive)
+    {
+        app::error_log("pm.php new_decision rejected archive target: " . $nd_file_rel);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
 
     # Kollisionspruefung (defensive Schicht — max+1 sollte das nie treffen).
     $nd_file_collision = file_exists($nd_file_abs);
@@ -1013,6 +1067,23 @@ if ($method_is_post && $action_is_new_ticket)
     $nt_file_rel  = "pm/milestones/" . $nt_ms_slug . "/open/" . $nt_file_slug . ".md";
     $nt_file_abs  = $nt_open_dir . "/" . $nt_file_slug . ".md";
     $nt_archive_collision_abs = $nt_archive_dir . "/" . $nt_file_slug . ".md";
+
+    # Archive-Guard (M014/0006): Defensive Schicht — Zielpfad darf nie
+    # unter einem archivierten Bereich landen. Ueber den milestone_slug-
+    # Regex `^[0-9]{3}-...` und die feste `/open/`-Komponente nicht
+    # direkt triggerbar, aber Server bleibt die Wahrheit ueber
+    # Archive-Read-only.
+    $nt_target_is_archive = app::is_archive_path($nt_file_rel);
+
+    if ($nt_target_is_archive)
+    {
+        app::error_log("pm.php new_ticket rejected archive target: " . $nt_file_rel);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
 
     # Kollisionspruefung: weder open/ noch archive/ darf das File schon haben.
     $nt_file_collision =
@@ -1468,7 +1539,10 @@ if ($method_is_post && $action_is_save)
     //   - `archive/`-Pfade werden defensiv abgelehnt (M012 erlaubt nur
     //     Edit ausserhalb `archive/`). Diese Schicht greift VOR jeder
     //     Whitelist; M014/0006 macht den Archive-Schutz zur expliziten
-    //     Doppelschicht.
+    //     Doppelschicht und realisiert den Check via
+    //     `app::is_archive_path()` — matched pm/<x>/.../archive/...,
+    //     pm/milestones/archive/..., pm/bugs/archive/...; nicht
+    //     zufaellige `archive`-Substrings in Dateinamen.
     //   - Pfad-Whitelist (M014/0001): Save akzeptiert genau dann, wenn
     //     `app::pm_write_kind($path)` !== "" ODER
     //     `app::pm_path_kind_legacy($path)` !== "".
@@ -1515,11 +1589,14 @@ if ($method_is_post && $action_is_save)
         : "";
     $save_path_is_markdown   = $save_path_extension === "md";
 
-    $save_path_is_archive    = str_contains($save_raw_path, "/archive/");
+    $save_path_is_archive    = app::is_archive_path($save_raw_path);
 
-    # `archive/` wird vor jedem weiteren Check abgelehnt — auch wenn
-    # alles andere passt. Defensive Schicht, damit ein versehentlich
-    # gebauter Save-Call nichts im Archiv anfasst.
+    # `archive/`-Pfade werden vor jedem weiteren Check abgelehnt — auch
+    # wenn alles andere passt. Defensive Schicht, damit ein versehentlich
+    # gebauter Save-Call nichts im Archiv anfasst (M014/0006). Pruefung
+    # ueber `app::is_archive_path()`: matched pm/<x>/.../archive/...,
+    # pm/milestones/archive/..., pm/bugs/archive/...; NICHT zufaellige
+    # `archive`-Substrings in Dateinamen wie `pm/decisions/0001-archive.md`.
     if ($save_path_is_archive)
     {
         app::error_log("pm.php save rejected archive path: " . $save_raw_path);

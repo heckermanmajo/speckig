@@ -31,13 +31,15 @@ declare(strict_types=1);
 #                                       `app/_share/spec_parser/`. Binary-Guard
 #                                       (NUL-Byte in den ersten 8 KB), Body
 #                                       max 1 MB. Atomar via tmp+rename. Siehe
-#                                       M013/0001.
+#                                       M013/0001. Archive-Guard via
+#                                       `app::is_archive_path()` (M014/0006).
 # POST ?action=new_file              -> JSON-Body {dir, name}. Legt eine leere
 #                                       Datei `dir/name` an. `dir === ""` ist
 #                                       Repo-Root. Schwarzliste analog Save.
 #                                       Name-Pattern `[A-Za-z0-9._-]{1,120}`,
 #                                       kein fuehrender Punkt. 409 bei
 #                                       Kollision. Siehe M013/0004.
+#                                       Archive-Guard (M014/0006).
 # POST ?action=delete_file&path=...  -> Loescht eine Datei unter SPECKIG_ROOT.
 #                                       Pfad-Validierung analog Save (kein `..`,
 #                                       kein fuehrender `/`, realpath innerhalb
@@ -45,6 +47,7 @@ declare(strict_types=1);
 #                                       (vendor/.git/spec_parser). Nur Dateien,
 #                                       keine Verzeichnisse. unlink() ist
 #                                       atomar im POSIX-Sinn. Siehe M013/0005.
+#                                       Archive-Guard (M014/0006).
 # Erfolg : HTTP 200 + JSON (Form je nach Aktion).
 # Fehler : HTTP 400/409/413/500 + { ok: false, message }.
 # @end-spec
@@ -97,6 +100,11 @@ if ($method_is_post && $action_is_save)
     //         als auch Substring — letzteres als defensive Schicht, falls
     //         ein Symlink o.ae. uns ueber Umwege in einen geschuetzten
     //         Unterbaum bringen koennte.
+    //       * Archive (M014/0006) via `app::is_archive_path()`: matched
+    //         pm/<x>/.../archive/..., pm/milestones/archive/...,
+    //         pm/bugs/archive/.... Server-Schicht ist die Wahrheit; die
+    //         UI versteckt zwar den Edit-Button (plan_loader.js), aber
+    //         curl-Aufrufe werden hier mit 400 abgelehnt.
     //       * Binaer-Inhalt (NUL-Byte in den ersten 8 KB der Body).
     //       * Body > 1 MB.
     //   - Pfad-Regeln: kein `..`, kein fuehrender `/`, parent-realpath muss
@@ -161,6 +169,24 @@ if ($method_is_post && $action_is_save)
         exit(json_encode([
             "ok"      => false,
             "message" => "Pfad nicht editierbar.",
+        ]));
+    }
+
+    # Archive-Guard (M014/0006): kein Schreiben unterhalb archivierter
+    # Bereiche. `app::is_archive_path()` matched pm/<x>/.../archive/...,
+    # pm/milestones/archive/..., pm/bugs/archive/...; nicht zufaellige
+    # `archive`-Substrings in Dateinamen. Die UI-Schicht versteckt zwar
+    # den Edit-Button (plan_loader.js), aber der Server bleibt die
+    # Wahrheit — auch direkte curl-Aufrufe werden abgelehnt.
+    $save_path_is_archive = app::is_archive_path($save_raw_path);
+
+    if ($save_path_is_archive)
+    {
+        app::error_log("file.php save rejected archive path: " . $save_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
         ]));
     }
 
@@ -318,6 +344,9 @@ if ($method_is_post && $action_is_new_file)
     //   - `dir` muss `is_dir` innerhalb SPECKIG_ROOT sein.
     //   - Schwarzliste (Prefix + Substring + exakter Match): `app/_share/vendor`,
     //     `.git`, `app/_share/spec_parser`. Treffer -> 400.
+    //   - Archive-Guard (M014/0006): `app::is_archive_path("<dir>/<name>")`
+    //     -> 400. Verhindert das Anlegen neuer Dateien unterhalb
+    //     archivierter Bereiche.
     //   - `name`: Pattern `[A-Za-z0-9._-]{1,120}`, kein fuehrender Punkt
     //     (Hidden-Files verbieten), kein Slash, kein `..`.
     //   - Kollision (`file_exists`) -> 409 `Datei existiert bereits.`.
@@ -515,6 +544,28 @@ if ($method_is_post && $action_is_new_file)
         ]));
     }
 
+    # --- Archive-Guard (M014/0006) ------------------------------------------
+    # Kein Anlegen unterhalb archivierter Bereiche. Wahrheit ueber
+    # `app::is_archive_path()` — matched pm/<x>/.../archive/...,
+    # pm/milestones/archive/..., pm/bugs/archive/...; nicht zufaellige
+    # `archive`-Substrings in Datei-/Ordnernamen.
+    $nf_target_rel =
+        $nf_dir_is_empty
+            ? $nf_name
+            : ($nf_dir . "/" . $nf_name);
+
+    $nf_target_is_archive = app::is_archive_path($nf_target_rel);
+
+    if ($nf_target_is_archive)
+    {
+        app::error_log("file.php new_file rejected archive path: " . $nf_target_rel);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
+        ]));
+    }
+
     # --- Kollisionspruefung -------------------------------------------------
     $nf_target_abs = $nf_dir_abs . "/" . $nf_name;
 
@@ -576,6 +627,9 @@ if ($method_is_post && $action_is_delete_file)
     //     ein Verzeichnis und nicht ins Nichts).
     //   - Schwarzliste (Prefix + Substring): `app/_share/vendor/`, `.git/`,
     //     `app/_share/spec_parser/`. Treffer -> 400 `Pfad nicht editierbar.`.
+    //   - Archive-Guard (M014/0006): `app::is_archive_path($path)` -> 400
+    //     `Ungueltiger Pfad.`. Archivierte Inhalte koennen ueber das
+    //     UI/diesen Endpoint nicht geloescht werden.
     //   - is_file($abs) false (Verzeichnis oder existiert nicht) -> 400
     //     `Pfad ist keine Datei.`.
     //   - `unlink($abs)` ist atomar im POSIX-Sinn (Verzeichniseintrag
@@ -632,6 +686,22 @@ if ($method_is_post && $action_is_delete_file)
         exit(json_encode([
             "ok"      => false,
             "message" => "Pfad nicht editierbar.",
+        ]));
+    }
+
+    # Archive-Guard (M014/0006): kein Loeschen unterhalb archivierter
+    # Bereiche. `app::is_archive_path()` matched pm/<x>/.../archive/...,
+    # pm/milestones/archive/..., pm/bugs/archive/...; nicht zufaellige
+    # `archive`-Substrings in Dateinamen.
+    $del_path_is_archive = app::is_archive_path($del_raw_path);
+
+    if ($del_path_is_archive)
+    {
+        app::error_log("file.php delete rejected archive path: " . $del_raw_path);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger Pfad.",
         ]));
     }
 
