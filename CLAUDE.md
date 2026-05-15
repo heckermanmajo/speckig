@@ -35,10 +35,16 @@ Pro Subagent-Prompt liefere mit:
    kanonischen Pfad zeigen. Aufräumen falls nicht.
 6. **Server-Cleanup**: gestartete Server am Ende mit `TaskStop`. Den
    8083-Server des Users NICHT killen — der gehört zur User-Session.
-7. **Workflow**: `## Done` ans Ticket, `git mv open/ → archive/`,
-   milestone.md häkchen, **alles in einem Commit** mit Format
-   `[MMM/NNNN]` oder `[bug/NNNN]`, HEREDOC für den Body, kein
-   Co-Authored-By, kein `--no-verify`, NICHT pushen.
+7. **Workflow**: Tickets durchlaufen drei Commits (`open` → `plan` →
+   Close). Der Subagent macht in der Regel nur den **Close-Commit**:
+   `## Done` ans Ticket, `git mv open/ → archive/`, milestone.md
+   häkchen, Code + Spec — **alles in einem Close-Commit** mit Format
+   `[MMM/NNNN] <summary>` oder `[bug/NNNN] <summary>`. Wenn das Ticket
+   noch keine `## Plan`-Section hat, darf der Subagent vor dem
+   Implementieren einen eigenen Plan-Commit (`[MMM/NNNN] plan <title>`)
+   davor setzen — niemals Plan und Close in einen Commit zusammen.
+   HEREDOC für den Body, kein Co-Authored-By, kein `--no-verify`,
+   NICHT pushen. Siehe `pm/how-to/commit.md` und `pm/how-to/process.md`.
 8. **Rückmeldung** explizit anfordern: Files, Smoketest-Belege,
    Commit-Hash, Cleanup-Status, Ungewöhnliches.
 
