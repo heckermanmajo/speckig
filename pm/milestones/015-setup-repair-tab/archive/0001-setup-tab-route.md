@@ -75,3 +75,54 @@ See: pm/how-to/code_style.md
 - Inhalt der Setup-Seite (0002/0003).
 - JS-Loader fuer Setup (kommt erst, wenn dynamische Re-Runs noetig
   werden).
+
+## Done
+- `app/setup.php` neu angelegt: Spec-Block (Vertrag der Setup-View +
+  Hinweis, dass sie auch bei kaputter Umgebung rendern soll),
+  `use _share\app; _share\html\header;`, `init.php`-Include,
+  Repo-Root-Resolution via `realpath(__DIR__ . "/..")` mit Fallback
+  auf "", `header::render("setup", "", $header_root_label)`-Aufruf,
+  `<main>` mit leerem `<nav>` (Sidebar kommt in 0002) und
+  `<article id="content">` mit Placeholder `Setup/Repair-Inhalt folgt.`
+  (via `app::escape()`).
+  - Bewusst kein `?path=...`-Konzept (Setup laedt keine pm/-Files);
+    Header-Path-Label ist hart "" — abweichend vom plan.php/info.php-
+    Muster, weil Setup nichts an `?path` braucht.
+  - CodeMirror-Stylesheet/JS-Bundles nicht eingebunden — Setup-Seite
+    rendert reines HTML, kein Editor.
+- `app/_share/html/header.php` erweitert:
+  - `render()`: `$setup_is_active`, `$setup_link_attrs` analog zu
+    files/plan/info.
+  - Vierter Nav-Link `<a href="/setup.php" ...>Setup / Repair</a>`
+    nach dem Info-Link angehaengt.
+  - Spec-Block ueber `render()` aktualisiert: `$active_view` listet
+    jetzt auch `"setup"`, Tab-Reihenfolge `Files, Plan, Info,
+    Setup / Repair`.
+  - Private `build_nav_link_attrs()` unveraendert; vierter Aufrufer
+    laeuft ueber `header::build_nav_link_attrs(...)` aus derselben
+    Klasse.
+
+Files touched:
+- `app/setup.php` (neu).
+- `app/_share/html/header.php` (Spec + Render-Block + vierter Link).
+- `pm/milestones/015-setup-repair-tab/milestone.md` (Haekchen +
+  archive/-Pfad).
+- ticket selbst nach `archive/`.
+
+Smoketest-Belege (Server `SPECKIG_ROOT=... php -S 127.0.0.1:8086 -t app`):
+- `php -l app/setup.php app/_share/html/header.php` -> clean.
+- `curl /setup.php` -> 200, HTML enthaelt 4-Tab-Header,
+  Setup-Link hat `aria-current="page"` + Klasse `active`.
+- `curl /index.php | grep -c 'href="/setup.php"'` -> 1.
+- `curl /plan.php  | grep -c 'href="/setup.php"'` -> 1.
+- `curl /info.php  | grep -c 'href="/setup.php"'` -> 1.
+- `curl /index.php | grep -c 'aria-current="page"'` -> 1.
+- `curl /setup.php | grep -c 'aria-current="page"'` -> 1.
+- Header-Reihenfolge via
+  `curl /setup.php | grep -oE 'href="/(index|plan|info|setup)\.php"' | head -4`
+  -> `index, plan, info, setup` in dieser Reihenfolge.
+- Regression: `/index.php`, `/plan.php`, `/info.php`, `/setup.php`
+  liefern alle 200; jede Seite markiert nur ihren eigenen Tab als
+  aktiv (`header-nav-link active" aria-current="page">Files/Plan/Info/Setup / Repair`).
+- Streu-File-Check: `app.sqlite` nur kanonisch unter `./app.sqlite`;
+  keine `*.tmp.*` Dateien.

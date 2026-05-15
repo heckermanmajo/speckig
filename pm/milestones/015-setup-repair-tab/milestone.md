@@ -12,7 +12,7 @@ Template anlegen).
 Status: planned
 
 ## Tickets
-- [ ] open/0001-setup-tab-route.md — vierten Header-Tab in
+- [x] archive/0001-setup-tab-route.md — vierten Header-Tab in
       `app/_share/html/header.php` ergaenzen; neue Route `app/setup.php`;
       Header-Active-View `setup` unterstuetzen.
 - [ ] open/0002-checks-runner.md — `_share\setup_checks::run()` mit

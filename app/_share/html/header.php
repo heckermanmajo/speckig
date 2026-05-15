@@ -25,9 +25,10 @@ class header
 
     // @spec
     // Rendert den `<header>`-Block.
-    // $active_view: "files", "plan" oder "info" — markiert den
+    // $active_view: "files", "plan", "info" oder "setup" — markiert den
     // entsprechenden Nav-Link mit `aria-current="page"` und Klasse
-    // `active`. Reihenfolge der Tabs im Header: Files, Plan, Info.
+    // `active`. Reihenfolge der Tabs im Header: Files, Plan, Info,
+    // Setup / Repair.
     // $path_label: rechts angezeigter Pfad (z.B. die aktuell angeklickte
     // Datei). Leerer String = nichts anzeigen.
     // $repo_label: Name des Repos/Roots (z.B. `speckig`). Leerer String
@@ -39,10 +40,12 @@ class header
         $files_is_active = $active_view === "files";
         $plan_is_active  = $active_view === "plan";
         $info_is_active  = $active_view === "info";
+        $setup_is_active = $active_view === "setup";
 
         $files_link_attrs = header::build_nav_link_attrs($files_is_active);
         $plan_link_attrs  = header::build_nav_link_attrs($plan_is_active);
         $info_link_attrs  = header::build_nav_link_attrs($info_is_active);
+        $setup_link_attrs = header::build_nav_link_attrs($setup_is_active);
 
         $repo_label_is_present = $repo_label !== "";
         $path_label_is_present = $path_label !== "";
@@ -52,6 +55,7 @@ class header
         $rendered .= "<a href=\"/index.php\"" . $files_link_attrs . ">Files</a>";
         $rendered .= "<a href=\"/plan.php\""  . $plan_link_attrs  . ">Plan</a>";
         $rendered .= "<a href=\"/info.php\""  . $info_link_attrs  . ">Info</a>";
+        $rendered .= "<a href=\"/setup.php\"" . $setup_link_attrs . ">Setup / Repair</a>";
         $rendered .= "</nav>";
         $rendered .= "<strong>speckig</strong>";
 
