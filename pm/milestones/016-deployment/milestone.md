@@ -16,7 +16,7 @@ Checks (M015) die zeigen, dass die Bashrc-Integration funktioniert.
 Status: planned
 
 ## Tickets
-- [ ] open/0001-install-howto.md — `pm/how-to/install.md` schreiben:
+- [x] archive/0001-install-howto.md — `pm/how-to/install.md` schreiben:
       Voraussetzungen (PHP 8.5), git clone-Befehl,
       Desktop-Pfad-Konvention (~/Desktop/speckig), Mac- und Linux-
       Hinweise.

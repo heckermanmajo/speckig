@@ -84,3 +84,35 @@ See: CLAUDE.md, pm/how-to/process.md
 - Tatsaechlicher Installer-Script (0003).
 - Bashrc-Snippet selbst (0002).
 - Update-Pfad.
+
+## Done
+- `pm/how-to/install.md` neu angelegt, 114 Zeilen. Struktur exakt nach
+  Plan: Voraussetzungen, vier nummerierte Schritte, Verifikation,
+  Mac- und Linux-Hinweise, Abschnitt "Warum -t app", See-also.
+- Default-Pfad `~/Desktop/speckig` als Default beschrieben, mit
+  Hinweis dass abweichender Pfad funktioniert aber Setup/Repair-Tab
+  einen `warn` ausgibt (Forward-Ref auf M016/0004).
+- Bashrc-Snippet-Schritt beschreibt beide Wege: Komfort via
+  `scripts/install.sh` (M016/0003) und manuelles Einfuegen aus
+  `scripts/bashrc-snippet.sh` (M016/0002). Beide Files sind noch nicht
+  da, werden im jeweiligen Ticket angelegt — Verlinkung steht.
+- Mac-/Linux-Hinweise sauber getrennt: brew install php vs. Paket-
+  manager-Befehle. `xdg-open`/`open`-Unterschied erwaehnt mit dem
+  Hinweis dass das Snippet das automatisch macht.
+- "Warum -t app"-Absatz erklaert Web-Root vs. Repo-Root und die Rolle
+  von `SPECKIG_ROOT` als Bruecke zurueck zum Repo-Wurzelverzeichnis
+  (Memory-Eintrag inhaltlich uebernommen).
+
+Files touched:
+- `pm/how-to/install.md` (neu).
+- `pm/milestones/016-deployment/milestone.md` (Haekchen + Pfad).
+- Ticket-Move open/ → archive/.
+
+Verifikation:
+- `ls -la pm/how-to/install.md` → existiert, 3447 Bytes.
+- `wc -l pm/how-to/install.md` → 114 (> 30 gefordert).
+- Markdown-Syntax visuell geprueft: Headings konsistent (H1, H2),
+  Code-Bloecke mit Sprache-Hint, Listen sauber.
+- `git status` clean nach Close-Commit.
+
+Plan-Abweichungen: keine.
