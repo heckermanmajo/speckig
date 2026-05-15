@@ -89,3 +89,75 @@ See: pm/how-to/ideas.md
 ## Out of scope (Plan)
 - Frontmatter / Metadaten in der neuen Datei.
 - Loeschung von Ideas (eigenes Ticket falls noetig).
+
+## Done
+- `app/pm.php` um POST-Handler `?action=new_idea` erweitert.
+  - Body JSON `{slug}`. Slug-Whitelist `^[a-z0-9][a-z0-9-]*$`, Laenge
+    1-80. Ungueltige Slugs (inkl. `../etc`, leer, Whitespace, Gross-
+    schreibung, Sonderzeichen) -> 400 `Ungueltiger slug.` + Log via
+    `app::error_log()`.
+  - Zielpfad `pm/ideas/<slug>.md`; `file_exists()` -> 409
+    `Idea existiert schon.` + Log. Kein stilles Ueberschreiben.
+  - Template fest verdrahtet (Begruendung: `pm/how-to/ideas.md`
+    dokumentiert keine klar abgegrenzte Template-Sektion; die im
+    How-to genannte Minimalform — Titel-Zeile + One-line essence +
+    Notes — wird hier 1:1 als HEREDOC reproduziert, damit kein
+    Parser ueber das How-to laufen muss).
+  - Atomar geschrieben via `tmp + rename`. Tmp wird bei Fehler
+    aufgeraeumt.
+  - Antwort 200 + `{ok:true, path:"pm/ideas/<slug>.md"}`.
+  - Spec-Block ueber dem Handler dokumentiert Vertrag, Whitelist,
+    Template-Begruendung; Datei-Header-Spec um den neuen Endpoint
+    erweitert.
+- `app/info.php`: `render_info_section()` um optionalen 4. Parameter
+  `$action_block_html` erweitert (default `""`, hat keinen Effekt fuer
+  die anderen Sektionen). Im Sidebar-Aufbau wird der Action-Block nur
+  fuer den Ideas-Aufruf uebergeben: `+ Idee`-Button (`.btn-new-idea`)
+  plus verstecktes `<form class="new-idea-form">` mit `.input-slug`,
+  `.btn-submit`, `.btn-cancel-form`, `.form-error`. Klassenstil
+  spiegelt `.new-milestone-form` / `.new-ticket-form` aus plan.php,
+  damit existierende CSS-Regeln greifen.
+- `app/_share/js/plan_loader.js` um `init_new_idea_form()` plus die
+  Handler `on_new_idea_button_click`, `on_new_idea_cancel_click` und
+  `on_new_idea_submit` erweitert.
+  - Submit POSTet `{slug}` an `/pm.php?action=new_idea`.
+  - Bei `ok:true` wird auf `info.php?path=pm/ideas/<slug>.md`
+    navigiert (statt nur `reload()`), damit die Sidebar refresht UND
+    der Loader die frische Idea direkt im Read-View mit
+    Edit-Toolbar oeffnet — symmetrisch zum new-ticket-Reload, aber
+    mit eingebauter `?path`-Auflage, damit der User sofort den
+    Inhalt sieht.
+  - Bei Fehler wird `.form-error` der Form befuellt.
+  - `init_new_idea_form()` ist self-guarded — kein no-op auf plan.php
+    oder anderen Routen ohne `.btn-new-idea`.
+  - Spec-Kommentar oben in der Datei um den M014/0003-Abschnitt
+    erweitert.
+
+Files touched:
+- `app/pm.php` (+~165 / -3: Header-Spec, action-Flag, Handler-Block
+  mit Spec-Kommentar).
+- `app/info.php` (+~25 / -2: Render-Funktion-Parameter, Sidebar-
+  Action-Block fuer Ideas).
+- `app/_share/js/plan_loader.js` (+~210 / -1: Spec-Block,
+  init_new_idea_form-Funktionsfamilie, Aufruf in init_plan_loader).
+- `pm/milestones/014-edit-info-cm/milestone.md` (Haekchen +
+  archive/-Pfad fuer 0003).
+- ticket selbst nach `archive/`.
+
+Smoketest-Belege (Server `php -S 127.0.0.1:8086 -t app`):
+- `php -l app/pm.php app/info.php` -> clean.
+- Happy `{"slug":"agent-smoke"}` -> 200 + `{ok:true,path:"pm/ideas/agent-smoke.md"}`.
+  `cat pm/ideas/agent-smoke.md` zeigt Template (Titel + essence + notes). Cleanup ok.
+- Collision `{"slug":"audits"}` -> 409 + `Idea existiert schon.`.
+  `head -2 pm/ideas/audits.md` zeigt unveraenderten Originalinhalt.
+- Reject `{"slug":"Bad Slug!"}` -> 400 + `Ungueltiger slug.`.
+- Reject `{"slug":""}` -> 400 + `Ungueltiger slug.`.
+- Reject `{"slug":"../etc"}` -> 400 + `Ungueltiger slug.`.
+- HTML-Check `curl info.php | grep -c btn-new-idea` -> 1.
+- HTML-Check `curl info.php | grep -c new-idea-form` -> 1.
+- JS-Check `grep -n "new-idea\|new_idea" plan_loader.js` -> 32 Matches
+  (Spec-Kommentar + Selektoren + Submit-Body + init-Aufruf).
+- M014/0001 Save-Regression: POST `pm/ideas/save-smoke.md` -> 200 +
+  `bytes:5`. Cleanup ok.
+- Streu-Files: `*.tmp.*` leer, `app.sqlite*` zeigt nur `./app.sqlite`.
+- Server via `TaskStop` gestoppt; Port 8083 nicht angefasst.

@@ -15,7 +15,7 @@ Status: planned
       Whitelist; pm/decisions/* nur create, nie overwrite.
 - [x] archive/0002-edit-mode-info-views.md — Edit-Button in der Plan-View
       fuer Info-Files; CodeMirror-Mount, Save/Cancel.
-- [ ] open/0003-new-idea-action.md — Action "neue Idea anlegen", Slug-
+- [x] archive/0003-new-idea-action.md — Action "neue Idea anlegen", Slug-
       Eingabe, leere Datei aus Template (pm/how-to/ideas.md).
 - [ ] open/0004-new-report-action.md — Action "neuer Report", naechste
       globale Nummer ermitteln, Template aus pm/how-to/reports.md.

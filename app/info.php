@@ -65,6 +65,10 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 // $entries: Array von `{slug, path, title}` aus pm_reader::list_info_sections().
 // $section_data_path: Wert fuer `data-path` (z.B. "pm/ideas") — fuer
 //   tree_collapse.js, das den Open/Closed-Zustand persistiert.
+// $action_block_html: optionaler HTML-Block, der INNERHALB des
+//   `.plan-milestone-body` unter der Liste eingefuegt wird (M014/0003 nutzt
+//   das fuer den "+ Idee"-Button + die `.new-idea-form`). Default "" hat
+//   keinen Effekt — die anderen Sektionen bekommen weiterhin nichts.
 // Bei leerer Liste wird `<p class="plan-tickets-empty">keine</p>` gerendert,
 // analog zu render_bugs_block in plan.php. Klick-Targets nutzen
 // `plan-ticket-link`, damit plan_loader.js ohne Aenderung greift, und
@@ -75,7 +79,7 @@ $header_root_label = $speckig_root_abs !== false ? basename($speckig_root_abs) :
 // dupliziert statt abstrahiert (Don't add abstractions beyond what the
 // task requires).
 // @end-spec
-function render_info_section(string $heading, array $entries, string $section_data_path): string
+function render_info_section(string $heading, array $entries, string $section_data_path, string $action_block_html = ""): string
 {
     $rendered = "<details class=\"plan-bugs\""
         . " data-path=\"" . app::escape($section_data_path) . "\">";
@@ -113,6 +117,16 @@ function render_info_section(string $heading, array $entries, string $section_da
         $rendered .= "</ul>";
     }
 
+    # Optionaler Action-Block (M014/0003): "+ Idee"-Button + verstecktes
+    # Inline-Formular. Wird nur fuer die Ideas-Sektion uebergeben, alle
+    # anderen Sektionen rufen render_info_section ohne dieses Argument auf.
+    $action_block_is_present = $action_block_html !== "";
+
+    if ($action_block_is_present)
+    {
+        $rendered .= $action_block_html;
+    }
+
     $rendered .= "</div>";
     $rendered .= "</details>";
 
@@ -123,8 +137,24 @@ function render_info_section(string $heading, array $entries, string $section_da
 
 $sidebar_html = "";
 
+# Action-Block fuer die Ideas-Sektion (M014/0003): "+ Idee"-Button plus
+# verstecktes Inline-Formular mit Slug-Eingabe. Submit-Logik lebt in
+# plan_loader.js (init_new_idea_form), Endpoint `POST /pm.php?action=new_idea`.
+# Markup-Stil spiegelt die `.new-milestone-form` / `.new-ticket-form` aus
+# plan.php — gleiche Klassen (`.btn-cancel-form`, `.form-error`, `.input-slug`),
+# damit die existierenden Helper greifen koennen.
+$ideas_action_block_html  = "<div class=\"plan-action-block\">";
+$ideas_action_block_html .= "<button type=\"button\" class=\"btn-new-idea\">+ Idee</button>";
+$ideas_action_block_html .= "<form class=\"new-idea-form\" hidden>";
+$ideas_action_block_html .= "<input type=\"text\" name=\"slug\" class=\"input-slug\" placeholder=\"slug (a-z, -)\" maxlength=\"80\" required>";
+$ideas_action_block_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+$ideas_action_block_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+$ideas_action_block_html .= "<span class=\"form-error\" hidden></span>";
+$ideas_action_block_html .= "</form>";
+$ideas_action_block_html .= "</div>";
+
 $sidebar_html .= "<h2 class=\"plan-section-heading\">Info</h2>";
-$sidebar_html .= render_info_section("Ideas",     $info_sections["ideas"],     "pm/ideas");
+$sidebar_html .= render_info_section("Ideas",     $info_sections["ideas"],     "pm/ideas",     $ideas_action_block_html);
 $sidebar_html .= render_info_section("Reports",   $info_sections["reports"],   "pm/reports");
 $sidebar_html .= render_info_section("Decisions", $info_sections["decisions"], "pm/decisions");
 $sidebar_html .= render_info_section("Audits",    $info_sections["audits"],    "pm/audits");

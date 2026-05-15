@@ -55,6 +55,17 @@
 // new-milestone-Form oder eine fremde Ticket-Form treffen. Endpoint
 // `POST /pm.php?action=new_ticket` bekommt `{milestone_slug, slug, title}`
 // als JSON; bei `ok:true` Reload, bei Fehler die jeweilige `.form-error`.
+//
+// New-Idea-Action (M014/0003): `init_new_idea_form()` bindet auf der
+// Info-Sidebar (info.php) einen Click-Handler an `.btn-new-idea`, der die
+// versteckte `.new-idea-form` aufdeckt, einen Cancel-Handler an den
+// `.btn-cancel-form` darin, und einen Submit-Handler an die Form selbst.
+// Submit POSTet `{slug}` an `POST /pm.php?action=new_idea`; bei `ok:true`
+// navigiert der Loader auf `info.php?path=pm/ideas/<slug>.md`, damit die
+// Sidebar neu rendert UND die frische Idea sofort im Edit-Mode-faehigen
+// Read-View geladen wird. Bei Fehler wird `.form-error` der Idea-Form
+// befuellt. Self-guarded: tut nichts, wenn Button/Form fehlen (z.B. auf
+// plan.php).
 // @end-spec
 
 (function ()
@@ -1017,6 +1028,201 @@
         });
     }
 
+    // ---- New-Idea-Action (M014/0003) --------------------------------------
+    // Sidebar-Button "+ Idee" auf info.php oeffnet eine Inline-Form mit
+    // einem einzelnen Slug-Input. Submit POSTet JSON an
+    // `/pm.php?action=new_idea` und navigiert bei `ok:true` direkt auf
+    // `info.php?path=pm/ideas/<slug>.md`, damit die Sidebar die neue Idea
+    // listet und der Loader die Datei lesbar/editierbar in den
+    // Content-Bereich laedt.
+
+    function show_new_idea_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    function on_new_idea_button_click()
+    {
+        let form_element   = document.querySelector(".new-idea-form");
+        let button_element = document.querySelector(".btn-new-idea");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (slug_input_exists)
+        {
+            slug_input.focus();
+        }
+    }
+
+    function on_new_idea_cancel_click()
+    {
+        let form_element   = document.querySelector(".new-idea-form");
+        let button_element = document.querySelector(".btn-new-idea");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        let slug_input = form_element.querySelector(".input-slug");
+        let error_node = form_element.querySelector(".form-error");
+
+        if (slug_input !== null) { slug_input.value = ""; }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden   = true;
+        button_element.hidden = false;
+    }
+
+    async function on_new_idea_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (! slug_input_exists)
+        {
+            return;
+        }
+
+        let slug_value = slug_input.value.trim();
+
+        let slug_is_present = slug_value !== "";
+
+        if (! slug_is_present)
+        {
+            show_new_idea_error(form_element, "Slug ist Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/pm.php?action=new_idea",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({ slug: slug_value }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("plan_loader: new_idea network error", network_failed);
+            show_new_idea_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("plan_loader: new_idea bad json", json_parse_failed);
+            show_new_idea_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true
+            && typeof data.path === "string"
+            && data.path !== "";
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_idea_error(form_element, server_message);
+            return;
+        }
+
+        // Symmetrisch zu new_ticket / new_milestone: einfacher Reload, damit
+        // die Sidebar die neue Idea listet. Wir haengen `?path=...` an,
+        // damit der Loader nach Reload direkt die frische Datei im
+        // Content-Bereich oeffnet (Read-Mode mit Edit-Toolbar).
+        let target_url = "/info.php?path=" + encodeURIComponent(data.path);
+
+        window.location.assign(target_url);
+    }
+
+    function init_new_idea_form()
+    {
+        let button_element = document.querySelector(".btn-new-idea");
+        let form_element   = document.querySelector(".new-idea-form");
+
+        let elements_exist = button_element !== null && form_element !== null;
+
+        if (! elements_exist)
+        {
+            return;
+        }
+
+        button_element.addEventListener("click", on_new_idea_button_click);
+
+        let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+        let cancel_button_exists = cancel_button !== null;
+
+        if (cancel_button_exists)
+        {
+            cancel_button.addEventListener("click", on_new_idea_cancel_click);
+        }
+
+        form_element.addEventListener("submit", on_new_idea_submit);
+    }
+
     function init_plan_loader()
     {
         let article_element = get_article_element();
@@ -1057,6 +1263,11 @@
         // plan.php; init_new_ticket_forms ist self-guarded (no-op, wenn
         // keine .btn-new-ticket / .new-ticket-form im DOM stehen).
         init_new_ticket_forms();
+
+        // New-Idea-Form (M014/0003) — nur in info.php vorhanden;
+        // init_new_idea_form ist self-guarded und tut nichts, wenn
+        // Button/Form fehlen (z.B. auf plan.php).
+        init_new_idea_form();
     }
 
     document.addEventListener("DOMContentLoaded", init_plan_loader);

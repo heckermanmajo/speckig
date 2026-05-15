@@ -6,7 +6,9 @@ declare(strict_types=1);
 // JSON-Endpoint fuer den Plan-View AJAX-Loader (M006/0003) plus
 // Save-Endpoint fuer den CodeMirror-Editor (M012/0002, M014/0001) plus
 // new_milestone-Endpoint fuer die "+ Milestone"-Action (M012/0005) plus
-// new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006).
+// new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006) plus
+// new_idea-Endpoint fuer die "+ Idee"-Action in der Info-Sidebar
+// (M014/0003).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
@@ -34,6 +36,14 @@ declare(strict_types=1);
 //                                       milestone.md vor "## Out of scope".
 //                                       Body JSON: {milestone_slug, slug, title}.
 //                                       Antwort: {ok:true, slug, path}.
+// POST ?action=new_idea              -> Neue Idea-Datei pm/ideas/<slug>.md
+//                                       aus Template anlegen (M014/0003).
+//                                       Body JSON: {slug}. Slug-Whitelist
+//                                       `^[a-z0-9][a-z0-9-]*$`, Laenge <=80.
+//                                       Kollision -> 409 (kein stilles
+//                                       Ueberschreiben). Atomar via
+//                                       tmp+rename.
+//                                       Antwort: {ok:true, path:"pm/ideas/<slug>.md"}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
 // Fehler : HTTP 400/409/413/500 + { ok: false, message }.
@@ -87,6 +97,166 @@ $action         = isset($_GET["action"]) ? (string) $_GET["action"] : "";
 $action_is_save = $action === "save";
 $action_is_new_milestone = $action === "new_milestone";
 $action_is_new_ticket    = $action === "new_ticket";
+$action_is_new_idea      = $action === "new_idea";
+
+if ($method_is_post && $action_is_new_idea)
+{
+    // @spec
+    // POST ?action=new_idea legt eine neue Idea-Datei unter pm/ideas/<slug>.md
+    // aus einem Template an.
+    // Vertrag:
+    //   - Body JSON: {"slug": "..."}.
+    //   - slug: 1-80 Zeichen, ausschliesslich [a-z0-9-], MUSS mit einem
+    //     [a-z0-9] starten (kein fuehrender Bindestrich). Form-Regex
+    //     `^[a-z0-9][a-z0-9-]*$`. Sonst 400.
+    //   - Kein `..`, kein `/`, kein `.` — fallen automatisch durch das
+    //     Charset-Regex, aber Traversal-Wert wie "../etc" wird damit hart
+    //     verworfen.
+    //   - Zielpfad: pm/ideas/<slug>.md. Wenn die Datei bereits existiert,
+    //     409 `Idea existiert schon.` (kein stilles Ueberschreiben).
+    //   - Template fest verdrahtet (siehe pm/how-to/ideas.md: Titel-Zeile
+    //     + One-line essence + Notes/Sketches). Begruendung: das How-to
+    //     hat keinen klar abgegrenzten Template-Block zum Parsen — die
+    //     Form ist bewusst lose. Stattdessen wird die im How-to
+    //     dokumentierte Minimalform direkt im Endpoint reproduziert,
+    //     damit Anlegen ohne Parser robust bleibt.
+    //   - Schreiben atomar via tmp + rename.
+    //   - Antwort 200 + {ok:true, path:"pm/ideas/<slug>.md"}.
+    //   - Jede Abweisung wird via app::error_log() protokolliert.
+    // @end-spec
+
+    $ni_body_raw = file_get_contents("php://input");
+
+    $ni_body_read_failed = $ni_body_raw === false;
+
+    if ($ni_body_read_failed)
+    {
+        app::error_log("pm.php new_idea body read failed.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $ni_payload = json_decode($ni_body_raw, true);
+
+    $ni_payload_is_object =
+        is_array($ni_payload)
+        && json_last_error() === JSON_ERROR_NONE;
+
+    if (! $ni_payload_is_object)
+    {
+        app::error_log("pm.php new_idea rejected: body ist kein JSON.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $ni_slug_raw = isset($ni_payload["slug"]) ? $ni_payload["slug"] : null;
+
+    # Slug validieren: String, 1-80 Zeichen, Regex ^[a-z0-9][a-z0-9-]*$.
+    $ni_slug_is_string = is_string($ni_slug_raw);
+    $ni_slug           = $ni_slug_is_string ? $ni_slug_raw : "";
+
+    $ni_slug_length_ok =
+        $ni_slug_is_string
+        && strlen($ni_slug) >= 1
+        && strlen($ni_slug) <= 80;
+
+    $ni_slug_shape_ok =
+        $ni_slug_length_ok
+        && preg_match('/^[a-z0-9][a-z0-9-]*$/', $ni_slug) === 1;
+
+    if (! $ni_slug_shape_ok)
+    {
+        app::error_log("pm.php new_idea rejected slug: " . (string) $ni_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger slug.",
+        ]));
+    }
+
+    $ni_file_rel = "pm/ideas/" . $ni_slug . ".md";
+    $ni_file_abs = $repo_root_abs . "/" . $ni_file_rel;
+
+    # Kollision: schon vorhandene Idea wird nicht ueberschrieben.
+    $ni_file_collision = file_exists($ni_file_abs);
+
+    if ($ni_file_collision)
+    {
+        app::error_log("pm.php new_idea collision: " . $ni_file_rel);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Idea existiert schon.",
+        ]));
+    }
+
+    # Template fest verdrahtet (siehe Spec oben + pm/how-to/ideas.md).
+    # Minimalform: Titel-Zeile aus dem Slug, leere Platzhalter-Sektion fuer
+    # One-line essence und Notes. Der User editiert die Datei direkt im
+    # Anschluss im Edit-Mode (M014/0002).
+    $ni_template = <<<IDEA_MD
+# {$ni_slug}
+
+One-line essence.
+
+Notes, sketches, open questions.
+
+IDEA_MD;
+
+    # Atomar schreiben: tmp + rename.
+    $ni_tmp_abs = $ni_file_abs . ".tmp." . bin2hex(random_bytes(4));
+
+    $ni_tmp_write_bytes = @file_put_contents($ni_tmp_abs, $ni_template);
+
+    $ni_tmp_write_failed = $ni_tmp_write_bytes === false;
+
+    if ($ni_tmp_write_failed)
+    {
+        app::error_log("pm.php new_idea tmp write failed: " . $ni_file_rel);
+
+        if (is_file($ni_tmp_abs))
+        {
+            @unlink($ni_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Schreiben fehlgeschlagen.",
+        ]));
+    }
+
+    $ni_rename_ok = @rename($ni_tmp_abs, $ni_file_abs);
+
+    if (! $ni_rename_ok)
+    {
+        app::error_log("pm.php new_idea rename failed: " . $ni_file_rel);
+
+        if (is_file($ni_tmp_abs))
+        {
+            @unlink($ni_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Rename fehlgeschlagen.",
+        ]));
+    }
+
+    app::error_log("pm.php new_idea: " . $ni_file_rel);
+
+    exit(json_encode([
+        "ok"   => true,
+        "path" => $ni_file_rel,
+    ]));
+}
 
 if ($method_is_post && $action_is_new_ticket)
 {
