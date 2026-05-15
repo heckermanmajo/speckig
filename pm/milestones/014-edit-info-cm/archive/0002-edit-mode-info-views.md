@@ -87,3 +87,50 @@ See: pm/how-to/decisions.md
 ## Out of scope (Plan)
 - Keine neuen CodeMirror-Modes (Markdown ist schon gevendored).
 - Keine UI fuer "neue Decision" — eigenes Ticket 0005.
+
+## Done
+- `app/_share/js/plan_loader.js` `render_toolbar()` um Decision-Guard
+  erweitert:
+  - Neue Bedingung `let path_is_decision = current_path.indexOf("pm/decisions/") === 0;`
+    direkt neben dem bestehenden `path_is_archive`.
+  - `edit_is_allowed = path_is_present && ! path_is_archive && ! path_is_decision`.
+  - Decisions sind damit UI-seitig read-only — die Toolbar wird gar
+    nicht gerendert, statt nur den Edit-Button auszublenden (gleiches
+    Muster wie `/archive/`).
+- Spec-Kommentar oberhalb der `render_toolbar()`-Sektion um den
+  M014/0002-Block erweitert: dokumentiert dass Decisions append-only
+  sind, dass der Edit-Button bewusst nicht erscheint, dass eine neue
+  Decision via 0005 kommt und dass die Server-Schicht (014/0001)
+  zusaetzlich blockt.
+- Info-Sektionen (Ideas, Reports, Audits, Terms) bekommen ohne
+  weiteren Code automatisch den Edit-Button — sie laufen ueber
+  denselben `plan_loader.js`/`render_toolbar()`-Pfad und liegen nicht
+  unter `pm/decisions/`. Save schreibt via dem in 014/0001
+  bereitgestellten pm.php-Endpoint zurueck.
+- `path_is_archive` bleibt unveraendert — archivierte Tickets und
+  archivierte Info-Files bleiben weiterhin read-only.
+
+Files touched:
+- `app/_share/js/plan_loader.js` (+10 / -2: Decision-Guard +
+  Spec-Kommentar im `render_toolbar()`-Block).
+- `pm/milestones/014-edit-info-cm/milestone.md` (Haekchen +
+  archive/-Pfad fuer 0002).
+- ticket selbst nach `archive/`.
+
+Smoketest-Belege:
+- `php -l app/info.php` -> clean (Datei nicht angefasst, Sanity-Check).
+- `grep -n "path_is_decision" app/_share/js/plan_loader.js` ->
+  Match in Z. 253 (`let path_is_decision = current_path.indexOf("pm/decisions/") === 0;`).
+- `grep -n "edit_is_allowed" app/_share/js/plan_loader.js` -> Match
+  in Z. 256 mit `&& ! path_is_decision`-Suffix; Guard greift in Z. 258.
+- Server `php -S 127.0.0.1:8086 -t app`:
+  - `GET /info.php` -> HTTP 200, HTML-Head mit `speckig — info`.
+  - `GET /_share/js/plan_loader.js` -> liefert das aktualisierte
+    Modul, beide grep-Marker (`path_is_decision`, `edit_is_allowed`)
+    auch in der ausgelieferten Datei.
+  - `GET /pm.php?path=pm/decisions/0001-bootstrap.md` -> 200 mit
+    `"path":"pm/decisions/0001-bootstrap.md"` — der Loader bekommt
+    den Praefix `pm/decisions/`, `indexOf === 0` greift, Toolbar wird
+    gar nicht gerendert.
+- Streu-File-Check: nur `./app.sqlite`; `*.tmp.*` leer.
+- `git status` clean nach Move + milestone-Update.

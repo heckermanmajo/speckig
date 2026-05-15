@@ -13,7 +13,7 @@ Status: planned
 - [x] archive/0001-save-info-endpoint.md — schreibender Endpoint fuer
       pm/ideas/*, pm/reports/*, pm/audits/*, pm/terms/*. Pfad-
       Whitelist; pm/decisions/* nur create, nie overwrite.
-- [ ] open/0002-edit-mode-info-views.md — Edit-Button in der Plan-View
+- [x] archive/0002-edit-mode-info-views.md — Edit-Button in der Plan-View
       fuer Info-Files; CodeMirror-Mount, Save/Cancel.
 - [ ] open/0003-new-idea-action.md — Action "neue Idea anlegen", Slug-
       Eingabe, leere Datei aus Template (pm/how-to/ideas.md).

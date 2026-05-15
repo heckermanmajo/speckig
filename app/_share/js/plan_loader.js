@@ -238,13 +238,22 @@
     // ist und der Pfad nicht unter `/archive/` liegt. Archive-Tickets
     // bleiben read-only — die Toolbar wird in dem Fall gar nicht gerendert,
     // statt nur den Edit-Button auszublenden.
+    //
+    // Decisions-Guard (M014/0002): Dateien unter `pm/decisions/` sind
+    // append-only — eine bestehende Decision wird via "Supersedes …"
+    // durch eine NEUE Datei abgeloest, nie editiert (siehe
+    // pm/how-to/decisions.md). Der Edit-Button erscheint dort bewusst
+    // gar nicht; die neue Decision-Datei kommt ueber ein eigenes Ticket
+    // (M014/0005). Server-Seite blockt zusaetzlich (M014/0001), aber die
+    // UI-Schicht spart dem User den Klick.
 
     function render_toolbar(article_element)
     {
-        let path_is_archive = current_path.indexOf("/archive/") !== -1;
-        let path_is_present = current_path !== "";
+        let path_is_archive  = current_path.indexOf("/archive/") !== -1;
+        let path_is_decision = current_path.indexOf("pm/decisions/") === 0;
+        let path_is_present  = current_path !== "";
 
-        let edit_is_allowed = path_is_present && ! path_is_archive;
+        let edit_is_allowed = path_is_present && ! path_is_archive && ! path_is_decision;
 
         if (! edit_is_allowed)
         {
