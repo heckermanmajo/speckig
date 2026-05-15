@@ -9,7 +9,10 @@ declare(strict_types=1);
 // new_ticket-Endpoint fuer die "+ Ticket"-Action (M012/0006) plus
 // new_idea-Endpoint fuer die "+ Idee"-Action in der Info-Sidebar
 // (M014/0003) plus new_report-Endpoint fuer die "+ Report"-Action in
-// der Info-Sidebar mit globaler Numerierung (M014/0004).
+// der Info-Sidebar mit globaler Numerierung (M014/0004) plus
+// new_decision-Endpoint fuer die "+ Decision"-Action in der Info-
+// Sidebar mit globaler Numerierung und optionalem Supersedes-Header
+// (M014/0005).
 //
 // GET  ?path=pm/...                  -> Markdown laden + rendern.
 // POST ?action=save&path=pm/....md   -> Body raw in die Datei schreiben.
@@ -55,6 +58,22 @@ declare(strict_types=1);
 //                                       max(existierender NNNN in
 //                                       pm/reports/) + 1, vierstellig
 //                                       zero-padded. Atomar via tmp+rename.
+//                                       Antwort: {ok:true, path, number}.
+// POST ?action=new_decision          -> Neue Decision unter
+//                                       pm/decisions/NNNN-<slug>.md anlegen
+//                                       (M014/0005). Body JSON:
+//                                       {slug, supersedes}. Slug-Whitelist
+//                                       `^[a-z0-9][a-z0-9-]*$`, Laenge <=80.
+//                                       Supersedes ist freitext (keine
+//                                       Validierung dass die genannte
+//                                       Decision existiert — out of scope).
+//                                       Globale Numerierung: max(NNNN in
+//                                       pm/decisions/) + 1, vierstellig
+//                                       zero-padded. Append-only ist hart:
+//                                       dieser Endpoint legt nur an, der
+//                                       save-Endpoint blockt Ueberschreiben
+//                                       bestehender Decisions mit 409
+//                                       (M014/0001). Atomar via tmp+rename.
 //                                       Antwort: {ok:true, path, number}.
 //
 // Erfolg : HTTP 200 + JSON (Form je nach Aktion, siehe unten).
@@ -111,6 +130,7 @@ $action_is_new_milestone = $action === "new_milestone";
 $action_is_new_ticket    = $action === "new_ticket";
 $action_is_new_idea      = $action === "new_idea";
 $action_is_new_report    = $action === "new_report";
+$action_is_new_decision  = $action === "new_decision";
 
 if ($method_is_post && $action_is_new_idea)
 {
@@ -512,6 +532,269 @@ REPORT_MD;
         "ok"     => true,
         "path"   => $nr_file_rel,
         "number" => $nr_file_nnnn,
+    ]));
+}
+
+if ($method_is_post && $action_is_new_decision)
+{
+    // @spec
+    // POST ?action=new_decision legt eine neue Decision-Datei unter
+    // pm/decisions/NNNN-<slug>.md aus einem Template an.
+    // Vertrag:
+    //   - Body JSON: {"slug": "...", "supersedes": "..." | ""}.
+    //   - slug: 1-80 Zeichen, ausschliesslich [a-z0-9-], MUSS mit einem
+    //     [a-z0-9] starten. Form-Regex `^[a-z0-9][a-z0-9-]*$`. Sonst 400.
+    //   - supersedes: optionaler Freitext. Wenn vorhanden und non-empty,
+    //     wandert der Wert 1:1 als `Supersedes: <wert>`-Zeile in den
+    //     Header der neuen Decision. Es wird *nicht* validiert, dass die
+    //     referenzierte Decision existiert (siehe Ticket-Notes: out of
+    //     scope). Leerer/fehlender Wert -> keine Supersedes-Zeile.
+    //   - Naechste Nummer NNNN: scandir(pm/decisions/), alle Eintraege
+    //     `NNNN-*.md` matchen, max+1. Bei leerem Verzeichnis -> 1. Wird
+    //     vierstellig zero-padded. Numerierung ist GLOBAL und wird nie
+    //     wiederverwendet (siehe pm/how-to/decisions.md).
+    //   - Zielpfad: pm/decisions/NNNN-<slug>.md. Bei Kollision (sollte
+    //     durch max+1 nicht passieren, defensive Schicht) -> 409.
+    //   - Template fest verdrahtet (siehe pm/how-to/decisions.md, Shape-
+    //     Block): Title-Zeile + optionaler Supersedes-Header + leere
+    //     Bullet-Zeile. Die leere Bullet ist absichtlich — Decisions sind
+    //     "one sentence per line", der User editiert die Datei direkt im
+    //     Anschluss im Edit-Mode (M014/0002). Title aus Slug abgeleitet
+    //     (Bindestriche -> Spaces, ucwords).
+    //   - Append-only-Garantie: dieser Endpoint legt NUR neue Dateien an.
+    //     Das Ueberschreiben einer bestehenden Decision wird vom save-
+    //     Endpoint mit 409 abgelehnt (M014/0001). Damit ist die Regel
+    //     "Decisions werden nie editiert" hart durchgesetzt — UI
+    //     versteckt zusaetzlich den Edit-Button (M014/0002).
+    //   - Schreiben atomar via tmp + rename.
+    //   - Antwort 200 + {ok:true, path:"pm/decisions/NNNN-<slug>.md", number:"NNNN"}.
+    //   - Jede Abweisung wird via app::error_log() protokolliert.
+    // @end-spec
+
+    $nd_body_raw = file_get_contents("php://input");
+
+    $nd_body_read_failed = $nd_body_raw === false;
+
+    if ($nd_body_read_failed)
+    {
+        app::error_log("pm.php new_decision body read failed.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body konnte nicht gelesen werden.",
+        ]));
+    }
+
+    $nd_payload = json_decode($nd_body_raw, true);
+
+    $nd_payload_is_object =
+        is_array($nd_payload)
+        && json_last_error() === JSON_ERROR_NONE;
+
+    if (! $nd_payload_is_object)
+    {
+        app::error_log("pm.php new_decision rejected: body ist kein JSON.");
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Body ist kein JSON.",
+        ]));
+    }
+
+    $nd_slug_raw       = isset($nd_payload["slug"])       ? $nd_payload["slug"]       : null;
+    $nd_supersedes_raw = isset($nd_payload["supersedes"]) ? $nd_payload["supersedes"] : null;
+
+    # Slug validieren: String, 1-80 Zeichen, Regex ^[a-z0-9][a-z0-9-]*$.
+    $nd_slug_is_string = is_string($nd_slug_raw);
+    $nd_slug           = $nd_slug_is_string ? $nd_slug_raw : "";
+
+    $nd_slug_length_ok =
+        $nd_slug_is_string
+        && strlen($nd_slug) >= 1
+        && strlen($nd_slug) <= 80;
+
+    $nd_slug_shape_ok =
+        $nd_slug_length_ok
+        && preg_match('/^[a-z0-9][a-z0-9-]*$/', $nd_slug) === 1;
+
+    if (! $nd_slug_shape_ok)
+    {
+        app::error_log("pm.php new_decision rejected slug: " . (string) $nd_slug);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiger slug.",
+        ]));
+    }
+
+    # Supersedes ist optional. Wenn vorhanden, muss es String sein
+    # (sonst ignorieren wir es bzw. behandeln als leer). Inhalt selber
+    # wird NICHT validiert — Ticket sagt explizit: keine Pruefung dass
+    # die referenzierte Decision existiert.
+    $nd_supersedes_is_string = is_string($nd_supersedes_raw);
+    $nd_supersedes           = $nd_supersedes_is_string ? trim($nd_supersedes_raw) : "";
+
+    # Freitext, aber wir lassen Newlines nicht zu, damit der Header
+    # eine einzige Zeile bleibt. Bei Newlines: 400.
+    $nd_supersedes_has_newline =
+        $nd_supersedes !== ""
+        && (str_contains($nd_supersedes, "\n") || str_contains($nd_supersedes, "\r"));
+
+    if ($nd_supersedes_has_newline)
+    {
+        app::error_log("pm.php new_decision rejected supersedes (newline): " . $nd_supersedes);
+        http_response_code(400);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Ungueltiges supersedes.",
+        ]));
+    }
+
+    # Naechste globale Nummer bestimmen: scandir(pm/decisions/), alle
+    # `NNNN-*.md`-Eintraege matchen, max+1. Bei leer -> 1.
+    $nd_decisions_dir = $repo_root_abs . "/pm/decisions";
+
+    $nd_entries = @scandir($nd_decisions_dir);
+
+    if ($nd_entries === false)
+    {
+        $nd_entries = [];
+    }
+
+    $nd_existing_numbers = [];
+
+    foreach ($nd_entries as $nd_entry)
+    {
+        $nd_entry_is_dotted = $nd_entry === "." || $nd_entry === "..";
+
+        if ($nd_entry_is_dotted)
+        {
+            continue;
+        }
+
+        $nd_entry_is_md = str_ends_with($nd_entry, ".md");
+
+        if (! $nd_entry_is_md)
+        {
+            continue;
+        }
+
+        $nd_entry_long_enough = strlen($nd_entry) >= 4;
+
+        if (! $nd_entry_long_enough)
+        {
+            continue;
+        }
+
+        $nd_prefix = substr($nd_entry, 0, 4);
+
+        $nd_prefix_is_four_digits = ctype_digit($nd_prefix);
+
+        if (! $nd_prefix_is_four_digits)
+        {
+            continue;
+        }
+
+        $nd_existing_numbers[] = (int) $nd_prefix;
+    }
+
+    $nd_has_existing = count($nd_existing_numbers) > 0;
+
+    $nd_next_number = $nd_has_existing ? (max($nd_existing_numbers) + 1) : 1;
+    $nd_file_nnnn   = sprintf("%04d", $nd_next_number);
+
+    $nd_file_rel = "pm/decisions/" . $nd_file_nnnn . "-" . $nd_slug . ".md";
+    $nd_file_abs = $repo_root_abs . "/" . $nd_file_rel;
+
+    # Kollisionspruefung (defensive Schicht — max+1 sollte das nie treffen).
+    $nd_file_collision = file_exists($nd_file_abs);
+
+    if ($nd_file_collision)
+    {
+        app::error_log("pm.php new_decision collision: " . $nd_file_rel);
+        http_response_code(409);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Decision existiert schon.",
+        ]));
+    }
+
+    # Title aus Slug ableiten: "agent-smoke" -> "Agent Smoke".
+    $nd_title = ucwords(str_replace("-", " ", $nd_slug));
+
+    # Template aufbauen. Supersedes-Header nur wenn gesetzt — sonst
+    # bleibt der Block weg, damit die Datei nicht mit leeren Zeilen
+    # startet, die der User wieder loeschen muesste.
+    $nd_supersedes_is_present = $nd_supersedes !== "";
+
+    if ($nd_supersedes_is_present)
+    {
+        $nd_template = <<<DECISION_MD
+# {$nd_file_nnnn} — {$nd_title}
+
+Supersedes: {$nd_supersedes}
+
+-
+
+DECISION_MD;
+    }
+    else
+    {
+        $nd_template = <<<DECISION_MD
+# {$nd_file_nnnn} — {$nd_title}
+
+-
+
+DECISION_MD;
+    }
+
+    # Atomar schreiben: tmp + rename.
+    $nd_tmp_abs = $nd_file_abs . ".tmp." . bin2hex(random_bytes(4));
+
+    $nd_tmp_write_bytes = @file_put_contents($nd_tmp_abs, $nd_template);
+
+    $nd_tmp_write_failed = $nd_tmp_write_bytes === false;
+
+    if ($nd_tmp_write_failed)
+    {
+        app::error_log("pm.php new_decision tmp write failed: " . $nd_file_rel);
+
+        if (is_file($nd_tmp_abs))
+        {
+            @unlink($nd_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Schreiben fehlgeschlagen.",
+        ]));
+    }
+
+    $nd_rename_ok = @rename($nd_tmp_abs, $nd_file_abs);
+
+    if (! $nd_rename_ok)
+    {
+        app::error_log("pm.php new_decision rename failed: " . $nd_file_rel);
+
+        if (is_file($nd_tmp_abs))
+        {
+            @unlink($nd_tmp_abs);
+        }
+
+        http_response_code(500);
+        exit(json_encode([
+            "ok"      => false,
+            "message" => "Rename fehlgeschlagen.",
+        ]));
+    }
+
+    app::error_log("pm.php new_decision: " . $nd_file_rel);
+
+    exit(json_encode([
+        "ok"     => true,
+        "path"   => $nd_file_rel,
+        "number" => $nd_file_nnnn,
     ]));
 }
 

@@ -76,6 +76,20 @@
 // `info.php?path=<data.path>` (der Server liefert den ganzen Pfad inkl.
 // NNNN-Prefix, der Client baut ihn NICHT zusammen). Bei Fehler wird
 // `.form-error` der Report-Form befuellt. Self-guarded.
+//
+// New-Decision-Action (M014/0005): `init_new_decision_form()` ist die
+// Schwester-Funktion auf der Decisions-Sektion. Click an
+// `.btn-new-decision` oeffnet `.new-decision-form` (Slug-Input plus
+// optionales Supersedes-Input — Freitext, keine Validierung dass der
+// referenzierte Eintrag existiert). Submit POSTet `{slug, supersedes}`
+// an `POST /pm.php?action=new_decision`; die Numerierung NNNN ermittelt
+// der Server (global, max+1, siehe pm/how-to/decisions.md). Bei
+// `ok:true` navigiert der Loader auf `info.php?path=<data.path>`. Bei
+// Fehler wird `.form-error` der Decision-Form befuellt. Decisions sind
+// append-only — der Edit-Button erscheint dort gar nicht (M014/0002),
+// der Save-Endpoint blockt Ueberschreiben mit 409 (M014/0001), dieser
+// Endpoint hier macht ausschliesslich Create. Self-guarded (no-op auf
+// plan.php).
 // @end-spec
 
 (function ()
@@ -1437,6 +1451,213 @@
         form_element.addEventListener("submit", on_new_report_submit);
     }
 
+    // ---- New-Decision-Action (M014/0005) ----------------------------------
+    // Sidebar-Button "+ Decision" auf info.php oeffnet eine Inline-Form mit
+    // Slug-Input plus optionalem Supersedes-Input. Die Numerierung NNNN
+    // vergibt der Server (global, max+1 aus pm/decisions/). Submit POSTet
+    // `{slug, supersedes}` an `/pm.php?action=new_decision`. Bei `ok:true`
+    // navigiert der Loader auf `info.php?path=<data.path>` — der Server
+    // liefert den vollen Pfad inklusive NNNN-Prefix. Decisions sind
+    // append-only — Edit-Button erscheint nicht (M014/0002), Save-Endpoint
+    // blockt Ueberschreiben (M014/0001), und dieser Endpoint legt nur an.
+
+    function show_new_decision_error(form_element, message)
+    {
+        let error_node = form_element.querySelector(".form-error");
+
+        let error_node_exists = error_node !== null;
+
+        if (! error_node_exists)
+        {
+            return;
+        }
+
+        error_node.textContent = message;
+        error_node.hidden      = false;
+    }
+
+    function on_new_decision_button_click()
+    {
+        let form_element   = document.querySelector(".new-decision-form");
+        let button_element = document.querySelector(".btn-new-decision");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        form_element.hidden   = false;
+        button_element.hidden = true;
+
+        let slug_input = form_element.querySelector(".input-slug");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (slug_input_exists)
+        {
+            slug_input.focus();
+        }
+    }
+
+    function on_new_decision_cancel_click()
+    {
+        let form_element   = document.querySelector(".new-decision-form");
+        let button_element = document.querySelector(".btn-new-decision");
+
+        let form_and_button_exist = form_element !== null && button_element !== null;
+
+        if (! form_and_button_exist)
+        {
+            return;
+        }
+
+        let slug_input       = form_element.querySelector(".input-slug");
+        let supersedes_input = form_element.querySelector(".input-supersedes");
+        let error_node       = form_element.querySelector(".form-error");
+
+        if (slug_input !== null)       { slug_input.value       = ""; }
+        if (supersedes_input !== null) { supersedes_input.value = ""; }
+
+        if (error_node !== null)
+        {
+            error_node.textContent = "";
+            error_node.hidden      = true;
+        }
+
+        form_element.hidden   = true;
+        button_element.hidden = false;
+    }
+
+    async function on_new_decision_submit(event)
+    {
+        event.preventDefault();
+
+        let form_element = event.currentTarget;
+
+        let form_exists = form_element !== null;
+
+        if (! form_exists)
+        {
+            return;
+        }
+
+        let slug_input       = form_element.querySelector(".input-slug");
+        let supersedes_input = form_element.querySelector(".input-supersedes");
+
+        let slug_input_exists = slug_input !== null;
+
+        if (! slug_input_exists)
+        {
+            return;
+        }
+
+        let slug_value = slug_input.value.trim();
+
+        // Supersedes ist optional — leerer String ist erlaubt und
+        // erzeugt KEINE Supersedes-Zeile in der neuen Datei.
+        let supersedes_value =
+            supersedes_input !== null
+                ? supersedes_input.value.trim()
+                : "";
+
+        let slug_is_present = slug_value !== "";
+
+        if (! slug_is_present)
+        {
+            show_new_decision_error(form_element, "Slug ist Pflicht.");
+            return;
+        }
+
+        let response = null;
+
+        try
+        {
+            response = await fetch(
+                "/pm.php?action=new_decision",
+                {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({ slug: slug_value, supersedes: supersedes_value }),
+                }
+            );
+        }
+        catch (network_failed)
+        {
+            console.warn("plan_loader: new_decision network error", network_failed);
+            show_new_decision_error(form_element, "Netzwerkfehler.");
+            return;
+        }
+
+        let data = null;
+
+        try
+        {
+            data = await response.json();
+        }
+        catch (json_parse_failed)
+        {
+            console.warn("plan_loader: new_decision bad json", json_parse_failed);
+            show_new_decision_error(form_element, "Server-Antwort unverstaendlich.");
+            return;
+        }
+
+        let server_signals_ok =
+            response.ok === true
+            && data !== null
+            && data.ok === true
+            && typeof data.path === "string"
+            && data.path !== "";
+
+        if (! server_signals_ok)
+        {
+            let server_message =
+                data !== null
+                && typeof data.message === "string"
+                && data.message !== ""
+                    ? data.message
+                    : "Anlegen fehlgeschlagen.";
+
+            show_new_decision_error(form_element, server_message);
+            return;
+        }
+
+        // Symmetrisch zu new_idea / new_report: Reload mit `?path=...`,
+        // damit die Sidebar die neue Decision listet UND der Loader sie
+        // direkt im Content-Bereich oeffnet. Decisions sind append-only,
+        // der Edit-Button erscheint im Read-View bewusst NICHT (M014/0002).
+        let target_url = "/info.php?path=" + encodeURIComponent(data.path);
+
+        window.location.assign(target_url);
+    }
+
+    function init_new_decision_form()
+    {
+        let button_element = document.querySelector(".btn-new-decision");
+        let form_element   = document.querySelector(".new-decision-form");
+
+        let elements_exist = button_element !== null && form_element !== null;
+
+        if (! elements_exist)
+        {
+            return;
+        }
+
+        button_element.addEventListener("click", on_new_decision_button_click);
+
+        let cancel_button = form_element.querySelector(".btn-cancel-form");
+
+        let cancel_button_exists = cancel_button !== null;
+
+        if (cancel_button_exists)
+        {
+            cancel_button.addEventListener("click", on_new_decision_cancel_click);
+        }
+
+        form_element.addEventListener("submit", on_new_decision_submit);
+    }
+
     function init_plan_loader()
     {
         let article_element = get_article_element();
@@ -1487,6 +1708,11 @@
         // init_new_report_form ist self-guarded und tut nichts, wenn
         // Button/Form fehlen (z.B. auf plan.php).
         init_new_report_form();
+
+        // New-Decision-Form (M014/0005) — nur in info.php vorhanden;
+        // init_new_decision_form ist self-guarded und tut nichts, wenn
+        // Button/Form fehlen (z.B. auf plan.php).
+        init_new_decision_form();
     }
 
     document.addEventListener("DOMContentLoaded", init_plan_loader);

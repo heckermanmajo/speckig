@@ -177,10 +177,32 @@ $reports_action_block_html .= "<span class=\"form-error\" hidden></span>";
 $reports_action_block_html .= "</form>";
 $reports_action_block_html .= "</div>";
 
+# Action-Block fuer die Decisions-Sektion (M014/0005): "+ Decision"-Button
+# plus verstecktes Inline-Formular mit Slug-Eingabe + optionalem
+# Supersedes-Input. Submit-Logik lebt in plan_loader.js
+# (init_new_decision_form), Endpoint `POST /pm.php?action=new_decision`.
+# Decisions sind append-only — Edit-Button erscheint bewusst nicht
+# (M014/0002), Save-Endpoint blockt das Ueberschreiben bestehender
+# Decisions mit 409 (M014/0001), und dieser Endpoint hier macht
+# ausschliesslich Create mit global ermittelter Nummer (max+1 aus
+# pm/decisions/). Markup-Stil spiegelt `.new-idea-form` / `.new-report-form`
+# — gleiche Klassen (`.btn-cancel-form`, `.form-error`, `.input-slug`),
+# damit existierende Helper greifen.
+$decisions_action_block_html  = "<div class=\"plan-action-block\">";
+$decisions_action_block_html .= "<button type=\"button\" class=\"btn-new-decision\">+ Decision</button>";
+$decisions_action_block_html .= "<form class=\"new-decision-form\" hidden>";
+$decisions_action_block_html .= "<input type=\"text\" name=\"slug\" class=\"input-slug\" placeholder=\"slug (a-z, -)\" maxlength=\"80\" required>";
+$decisions_action_block_html .= "<input type=\"text\" name=\"supersedes\" class=\"input-supersedes\" placeholder=\"Supersedes (optional, z.B. 0007-editor-vendoring)\" maxlength=\"120\">";
+$decisions_action_block_html .= "<button type=\"submit\" class=\"btn-submit\">Anlegen</button>";
+$decisions_action_block_html .= "<button type=\"button\" class=\"btn-cancel-form\">Abbrechen</button>";
+$decisions_action_block_html .= "<span class=\"form-error\" hidden></span>";
+$decisions_action_block_html .= "</form>";
+$decisions_action_block_html .= "</div>";
+
 $sidebar_html .= "<h2 class=\"plan-section-heading\">Info</h2>";
 $sidebar_html .= render_info_section("Ideas",     $info_sections["ideas"],     "pm/ideas",     $ideas_action_block_html);
 $sidebar_html .= render_info_section("Reports",   $info_sections["reports"],   "pm/reports",   $reports_action_block_html);
-$sidebar_html .= render_info_section("Decisions", $info_sections["decisions"], "pm/decisions");
+$sidebar_html .= render_info_section("Decisions", $info_sections["decisions"], "pm/decisions", $decisions_action_block_html);
 $sidebar_html .= render_info_section("Audits",    $info_sections["audits"],    "pm/audits");
 $sidebar_html .= render_info_section("Terms",     $info_sections["terms"],     "pm/terms");
 

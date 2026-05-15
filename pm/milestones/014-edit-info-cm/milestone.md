@@ -19,7 +19,7 @@ Status: planned
       Eingabe, leere Datei aus Template (pm/how-to/ideas.md).
 - [x] archive/0004-new-report-action.md — Action "neuer Report", naechste
       globale Nummer ermitteln, Template aus pm/how-to/reports.md.
-- [ ] open/0005-new-decision-action.md — Action "neue Decision-Datei",
+- [x] archive/0005-new-decision-action.md — Action "neue Decision-Datei",
       naechste globale Nummer, Template aus pm/how-to/decisions.md.
       Edit bestehender Decisions bleibt verboten (Supersede via neue
       Datei).
